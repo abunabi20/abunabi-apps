@@ -249,14 +249,18 @@ function unit(n){const d=S.units[n]||{};const L=LAYOUT[n];return{no:n,side:d.sid
 const occupied=u=>!!(u.tenant&&u.tenant.name);
 const loc=u=>u.side+' · '+u.floor;
 function cEnd(c){if(!c||!c.start)return '';return c.end||iso(addDays(addMonths(pd(c.start),12),-1))}
+const cTot=c=>r2((+(c&&c.annualRent)||0)+(+(c&&c.waterFee)||0));
 function schedule(c,n){
-  if(!c||!c.start||!c.annualRent||!c.id)return[];
+  if(!c||!c.start||!cTot(c)||!c.id)return[];
   const cm=(CYCLES[c.cycle]||CYCLES.annual).m;const start=pd(c.start);const end=pd(cEnd(c));
-  const out=[];let i=0,d=start;
-  while(d<=end&&i<240){const nx=addMonths(start,(i+1)*cm);const pid=c.id+'_'+i;const p=S.payments[pid];const entries=(p&&p.entries)||[];
-    out.push({id:pid,idx:i,unit:n,contractId:c.id,due:iso(d),to:iso(addDays(nx,-1)>end?end:addDays(nx,-1)),amount:r2(c.annualRent*cm/12),paid:r2(sum(entries,e=>e.amount)),entries});
-    i++;d=nx}
-  return out;
+  const raw=[];let i=0,d=start;
+  while(d<=end&&i<240){const nx=addMonths(start,(i+1)*cm);raw.push({i,due:iso(d),to:iso(addDays(nx,-1)>end?end:addDays(nx,-1))});i++;d=nx}
+  const N=raw.length;const termTotal=r2(cTot(c)*N*cm/12);const fixed=+c.installmentAmount||0;
+  return raw.map(({i,due,to})=>{
+    let amount=fixed?fixed:r2(cTot(c)*cm/12);
+    if(fixed&&i===N-1&&N>1){const last=r2(termTotal-fixed*(N-1));if(last>0)amount=last}
+    const pid=c.id+'_'+i;const p=S.payments[pid];const entries=(p&&p.entries)||[];
+    return{id:pid,idx:i,unit:n,contractId:c.id,due,to,amount,paid:r2(sum(entries,e=>e.amount)),entries}});
 }
 function allContracts(){const out=[];UNITS.forEach(n=>{const u=unit(n);if(u.contract.id&&u.contract.start)out.push({unit:n,tenant:u.tenant,contract:u.contract,active:true})});
   Object.values(S.archive).forEach(a=>{if(a.contract&&a.contract.id)out.push({unit:a.unit,tenant:a.tenant||{},contract:a.contract,active:false,archId:a._id})});return out}
@@ -352,7 +356,7 @@ function vHome(){
   const soon=ins.filter(i=>i.due>t&&dBetween(t,i.due)<=30&&iStatus(i)!=='paid');
   const expiring=allContracts().filter(c=>c.active&&dBetween(t,cEnd(c.contract))<=60);
   const elecOut=sum(UNITS,n=>elecStatus(n).outstanding);
-  const potential=sum(UNITS,n=>{const u=unit(n);return occupied(u)?+u.contract.annualRent||0:0});
+  const potential=sum(UNITS,n=>{const u=unit(n);return occupied(u)?cTot(u.contract):0});
   let h=`<section class="kpis">
    ${kpi('🏠','الشقق المؤجرة',occ+' من 6','pri')}
    ${kpi('💵','المحصّل في '+y,money(collected),'green')}
@@ -371,7 +375,7 @@ function vHome(){
   expiring.forEach(c=>{const d=dBetween(t,cEnd(c.contract));al.push([d<0?'late':'soon','📄',`شقة ${c.unit}: العقد ${d<0?'منتهٍ منذ '+(-d)+' يوم':'ينتهي بعد '+d+' يوم'}`,`${esc(c.tenant.name||'')} · نهاية العقد ${fd(cEnd(c.contract))}، رتّب التجديد أو الإخلاء`,`unitModal(${c.unit})`])});
   UNITS.forEach(n=>{const e=elecStatus(n);if(e.outstanding>0)al.push(['late','⚡',`شقة ${n}: كهرباء غير مسددة ${money(e.outstanding)}`,`${e.bills.filter(b=>b._st!=='paid').length} فاتورة مفتوحة`,`go('elec')`]);else if(e.dueWarn)al.push(['soon','⚡',`شقة ${n}: إشعار مستحقات من الكهرباء ${e.dueWarn.amount?money(e.dueWarn.amount):''}`,`بتاريخ ${fd(e.dueWarn.date)}`,`go('elec')`])});
   UNITS.forEach(n=>{const u=unit(n);if(!occupied(u))al.push(['vacant','🚪',`شقة ${n} شاغرة`,loc(u),`unitModal(${n})`]);else{
-    if(!u.contract.start||!u.contract.annualRent)al.push(['soon','📝',`شقة ${n}: أكمل بيانات العقد`,'تاريخ البداية وقيمة الإيجار ونظام الدفع',`unitModal(${n})`]);
+    if(!u.contract.start||!cTot(u.contract))al.push(['soon','📝',`شقة ${n}: أكمل بيانات العقد`,'تاريخ البداية وقيمة الإيجار ونظام الدفع',`unitModal(${n})`]);
     else if(!u.contract.ejarNo)al.push(['vacant','🔖',`شقة ${n}: لم يُسجل رقم عقد إيجار`,'التوثيق في منصة إيجار يحمي حقك',`unitModal(${n})`]);}
     if(!u.elec.account&&!u.elec.subscription)al.push(['vacant','🔌',`شقة ${n}: معلومات الكهرباء ناقصة`,'أضف رقم الحساب والاشتراك لتعمل قراءة الرسائل',`unitModal(${n})`])});
   h+=`<h2 class="sec">🔔 التنبيهات <span class="chip st-late">${al.filter(a=>a[0]==='late').length}</span></h2>`;
@@ -386,7 +390,7 @@ function vUnits(){
     const paidN=ins.filter(i=>iStatus(i)==='paid').length;
     return`<div class="card"><div class="uhead"><div style="display:flex;gap:10px;align-items:center"><div class="ubadge">${n}</div><div><b>شقة رقم ${n}</b><div class="small muted">${loc(u)}</div></div></div><span class="chip st-${s.st}">${s.label}</span></div>
     ${occupied(u)?`<dl class="kv"><dt>المستأجر</dt><dd>${esc(u.tenant.name)}</dd><dt>الجوال</dt><dd class="num">${esc(u.tenant.phone||'-')}</dd><dt>الهوية</dt><dd class="num">${esc(u.tenant.idNo||'-')}</dd>
-      <dt>الإيجار السنوي</dt><dd>${c.annualRent?money(c.annualRent):'-'}</dd><dt>نظام الدفع</dt><dd>${CYC_SHORT[c.cycle]||'-'}${c.annualRent?' · '+money(c.annualRent*(CYCLES[c.cycle]||CYCLES.annual).m/12)+' للدفعة':''}</dd>
+      <dt>الإيجار السنوي</dt><dd>${c.annualRent?money(c.annualRent):'-'}${+c.waterFee?' + ماء '+money(c.waterFee):''}</dd>${+c.waterFee?`<dt>المجموع السنوي</dt><dd>${money(cTot(c))}</dd>`:''}<dt>نظام الدفع</dt><dd>${CYC_SHORT[c.cycle]||'-'}${(()=>{const I=schedule(c,n);return I.length?' · '+money(I[0].amount)+' للدفعة':cTot(c)?' · '+money(cTot(c)*(CYCLES[c.cycle]||CYCLES.annual).m/12)+' للدفعة':''})()}</dd>
       <dt>مدة العقد</dt><dd>${c.start?fd(c.start)+' إلى '+fd(cEnd(c)):'-'}</dd><dt>عقد إيجار</dt><dd>${esc(c.ejarNo||'غير مسجل')}</dd></dl>
       ${ins.length?`<div class="small muted" style="margin-top:8px">الدفعات المسددة ${paidN} من ${ins.length}</div><div class="bar"><i style="width:${ins.length?paidN/ins.length*100:0}%"></i></div>`:''}`
       :`<p class="muted">الشقة شاغرة حالياً. اضغط تعديل لإضافة مستأجر جديد.</p>`}
@@ -408,14 +412,17 @@ function unitModal(n){
    <label>تاريخ الميلاد<input id="f_dob" placeholder="مثال 10/1/1411" value="${esc(t.dob)}"></label>
    <label>رقم الجوال<input id="f_phone" inputmode="tel" value="${esc(t.phone)}"></label>
    <label>جوال إضافي / للطوارئ<input id="f_phone2" inputmode="tel" value="${esc(t.phone2)}"></label>
-   <label>جهة العمل<input id="f_work" value="${esc(t.work)}"></label>
+   <label>جهة العمل / المهنة<input id="f_work" value="${esc(t.work)}"></label>
+   <label>الجنسية<input id="f_nat" value="${esc(t.nationality)}"></label>
    <label>عدد أفراد الأسرة<input id="f_family" inputmode="numeric" value="${esc(t.family)}"></label>
    <label>انتهاء الهوية / الإقامة<input id="f_idExp" placeholder="اختياري" value="${esc(t.idExp)}"></label>
    <div class="fsec">📄 العقد</div>
    <label>تاريخ بداية العقد<input type="date" id="f_start" value="${esc(c.start)}" oninput="calcInst()"></label>
    <label>تاريخ نهاية العقد<input type="date" id="f_end" value="${esc(c.end)}" placeholder="افتراضياً سنة"></label>
-   <label>قيمة الإيجار السنوي (ر.س)<input id="f_rent" inputmode="decimal" value="${esc(c.annualRent)}" oninput="calcInst()"></label>
+   <label>الإيجار السنوي بدون الماء (ر.س)<input id="f_rent" inputmode="decimal" value="${esc(c.annualRent)}" oninput="calcInst()"></label>
+   <label>رسوم الماء السنوية (ر.س)<input id="f_water" inputmode="decimal" value="${esc(c.waterFee||'')}" placeholder="0" oninput="calcInst()"></label>
    <label>نظام الدفع<select id="f_cycle" onchange="calcInst()">${opt(CYCLES?Object.fromEntries(Object.entries(CYCLES).map(([k,x])=>[k,x.l])):{},c.cycle||'annual')}</select></label>
+   <label>قيمة الدفعة الثابتة (اختياري)<input id="f_inst" inputmode="decimal" value="${esc(c.installmentAmount||'')}" placeholder="تلقائي" oninput="calcInst()"></label>
    <div class="full small" id="instHint" style="color:var(--pri);font-weight:600"></div>
    <label>مبلغ التأمين (ر.س)<input id="f_deposit" inputmode="decimal" value="${esc(c.deposit)}"></label>
    <label>رقم عقد إيجار<input id="f_ejar" value="${esc(c.ejarNo)}"></label>
@@ -431,11 +438,13 @@ function unitModal(n){
   <div class="btns"><button class="btn" onclick="saveUnit(${n})">💾 حفظ</button><button class="btn ghost" onclick="closeModal()">إلغاء</button></div>`);
   calcInst();
 }
-function calcInst(){const h=$('#instHint');if(!h)return;const r=+v('f_rent');const cy=CYCLES[v('f_cycle')]||CYCLES.annual;h.textContent=r?`قيمة كل دفعة: ${money(r*cy.m/12)} · عدد الدفعات في السنة: ${12/cy.m}`:''}
+function calcInst(){const h=$('#instHint');if(!h)return;const tot=(+v('f_rent')||0)+(+v('f_water')||0);const cy=CYCLES[v('f_cycle')]||CYCLES.annual;const n=12/cy.m;const fx=+v('f_inst')||0;
+  if(!tot){h.textContent='';return}let t=`المجموع السنوي: ${money(tot)} · عدد الدفعات: ${n} · قيمة الدفعة: ${money(fx||tot/n)}`;
+  if(fx&&n>1){const last=r2(tot-fx*(n-1));t+=last!==fx?` · الدفعة الأخيرة: ${money(last)} لتطابق المجموع`:''}h.textContent=t}
 async function saveUnit(n){
   const u=unit(n);const c={...u.contract};
-  const tenant={name:v('f_name'),idNo:v('f_idNo'),idType:v('f_idType'),dob:v('f_dob'),phone:v('f_phone'),phone2:v('f_phone2'),work:v('f_work'),family:v('f_family'),idExp:v('f_idExp')};
-  Object.assign(c,{start:v('f_start'),end:v('f_end'),annualRent:+v('f_rent').replace(/,/g,'')||0,cycle:v('f_cycle')||'annual',deposit:+v('f_deposit')||0,ejarNo:v('f_ejar'),notes:v('f_cnotes')});
+  const tenant={name:v('f_name'),idNo:v('f_idNo'),idType:v('f_idType'),dob:v('f_dob'),phone:v('f_phone'),phone2:v('f_phone2'),work:v('f_work'),nationality:v('f_nat'),family:v('f_family'),idExp:v('f_idExp')};
+  Object.assign(c,{start:v('f_start'),end:v('f_end'),annualRent:+v('f_rent').replace(/,/g,'')||0,waterFee:+v('f_water').replace(/,/g,'')||0,installmentAmount:+v('f_inst').replace(/,/g,'')||0,cycle:v('f_cycle')||'annual',deposit:+v('f_deposit')||0,ejarNo:v('f_ejar'),notes:v('f_cnotes')});
   if(c.start&&!c.id)c.id=uid('c');
   const elec={subscription:v('f_sub'),account:v('f_acc'),meter:v('f_meter'),meterLabel:v('f_mlabel'),moveInReading:v('f_mread')};
   try{await dbSet('units/'+n,{no:n,side:u.side,floor:u.floor,tenant,contract:c,elec,notes:v('f_notes'),updatedAt:Date.now()});closeModal();toast('تم الحفظ ✓')}catch(e){}
@@ -450,7 +459,7 @@ async function endContract(n,keepTenant){
   if(c.id){c.end=ed<c.start?c.start:ed;
     try{await dbSet('archive/'+c.id,{unit:n,tenant:u.tenant,contract:c,endedAt:ed,outReading:keepTenant?'':v('f_outread'),depositReturned:keepTenant?'':v('f_depret'),endNote:keepTenant?'تجديد':v('f_endnote')})}catch(e){return}}
   const tenant=keepTenant?u.tenant:{};
-  let nc={};if(keepTenant){const ns=iso(addDays(pd(cEnd(u.contract)),1));nc={id:uid('c'),start:ns,end:'',annualRent:c.annualRent,cycle:c.cycle,deposit:c.deposit,ejarNo:'',notes:''}}
+  let nc={};if(keepTenant){const ns=iso(addDays(pd(cEnd(u.contract)),1));nc={id:uid('c'),start:ns,end:'',annualRent:c.annualRent,waterFee:c.waterFee||0,installmentAmount:c.installmentAmount||0,cycle:c.cycle,deposit:c.deposit,ejarNo:'',notes:''}}
   try{await dbSet('units/'+n,{no:n,side:u.side,floor:u.floor,tenant,contract:nc,elec:u.elec,notes:u.notes,updatedAt:Date.now()});closeModal();toast(keepTenant?'تم إنشاء عقد التجديد':'تم إخلاء الشقة وأرشفة العقد');if(keepTenant)unitModal(n)}catch(e){}
 }
 async function renewModal(n){const u=unit(n);if(!u.contract.start){toast('أكمل بيانات العقد أولاً');return}
@@ -635,7 +644,7 @@ function buildReport(){
     csv=[['الشهر','المتوقع','المحصل','المصروفات','الصافي','فواتير الكهرباء'],...m.map(x=>[x.nm,x.exp,x.col,x.ex,x.net,x.el]),['الإجمالي',TE,TC,TX,TC-TX,TL]];}
   else if(repType==='units'){title='أداء الشقق لسنة '+Y;
     const rows=UNITS.map(n=>{const u=unit(n);const ui=ins.filter(i=>i.unit==n);const col=sum(ents.filter(e=>e.unit==n&&(e.date||'').startsWith(Y)),e=>e.amount);const exp=sum(ui.filter(i=>i.due.startsWith(Y)),i=>i.amount);const late=sum(ui.filter(i=>['late','partial'].includes(iStatus(i))),remain);const ex=sum(exps.filter(e=>e.unit==n&&(e.date||'').startsWith(Y)),e=>e.amount);const el=elecStatus(n).outstanding;
-      return[n,occupied(u)?u.tenant.name:'شاغرة',occupied(u)?+u.contract.annualRent||0:0,occupied(u)?CYC_SHORT[u.contract.cycle]||'-':'-',exp,col,late,el,ex,col-ex]});
+      return[n,occupied(u)?u.tenant.name:'شاغرة',occupied(u)?cTot(u.contract):0,occupied(u)?CYC_SHORT[u.contract.cycle]||'-':'-',exp,col,late,el,ex,col-ex]});
     const occ=UNITS.filter(n=>occupied(unit(n))).length;
     body=`<div class="kpis" style="margin-bottom:12px">${kpi('🏠','نسبة الإشغال',Math.round(occ/6*100)+'%','pri')}${kpi('📈','الدخل السنوي للعقود الحالية',money(sum(rows,r=>r[2])),'blue')}${kpi('💵','المحصّل '+Y,money(sum(rows,r=>r[5])),'green')}${kpi('⏰','المتأخرات',money(sum(rows,r=>r[6])),'red')}</div>`+
       tbl(['شقة','المستأجر','الإيجار السنوي','الدفع','المتوقع '+Y,'المحصّل','متأخرات','كهرباء غير مسددة','مصروفات','الصافي'],rows.map(r=>[r[0],esc(r[1]),nf(r[2]),r[3],nf(r[4]),nf(r[5]),nf(r[6]),nf(r[7]),nf(r[8]),nf(r[9])]),['','الإجمالي',nf(sum(rows,r=>r[2])),'',nf(sum(rows,r=>r[4])),nf(sum(rows,r=>r[5])),nf(sum(rows,r=>r[6])),nf(sum(rows,r=>r[7])),nf(sum(rows,r=>r[8])),nf(sum(rows,r=>r[9]))]);
@@ -658,9 +667,9 @@ function buildReport(){
     csv=[['التاريخ','البيان','المستأجر','مدين','دائن','الرصيد'],...rows.map(r=>r.map(c=>String(c).replace(/<[^>]+>/g,'')))];}
   else if(repType==='contracts'){title='تقرير العقود الحالية';
     const C=allContracts().filter(c=>c.active);
-    const rows=C.map(c=>{const e=cEnd(c.contract);const d=dBetween(t,e);return[c.unit,esc(c.tenant.name),fd(c.contract.start),fd(e),d<0?`<span style="color:var(--red)">منتهي منذ ${-d}</span>`:d<=60?`<span style="color:var(--amber)">${d}</span>`:d,nf(c.contract.annualRent),CYC_SHORT[c.contract.cycle]||'-',nf(c.contract.deposit),esc(c.contract.ejarNo||'غير موثق')]});
-    body=tbl(['شقة','المستأجر','البداية','النهاية','الأيام المتبقية','الإيجار السنوي','الدفع','التأمين','عقد إيجار'],rows,['','الإجمالي','','','',nf(sum(C,c=>c.contract.annualRent)),'',nf(sum(C,c=>c.contract.deposit)),'']);
-    csv=[['شقة','المستأجر','البداية','النهاية','الأيام المتبقية','الإيجار السنوي','الدفع','التأمين','عقد إيجار'],...C.map(c=>[c.unit,c.tenant.name,c.contract.start,cEnd(c.contract),dBetween(t,cEnd(c.contract)),c.contract.annualRent,CYC_SHORT[c.contract.cycle],c.contract.deposit,c.contract.ejarNo])];}
+    const rows=C.map(c=>{const e=cEnd(c.contract);const d=dBetween(t,e);return[c.unit,esc(c.tenant.name),fd(c.contract.start),fd(e),d<0?`<span style="color:var(--red)">منتهي منذ ${-d}</span>`:d<=60?`<span style="color:var(--amber)">${d}</span>`:d,nf(cTot(c.contract)),CYC_SHORT[c.contract.cycle]||'-',nf(c.contract.deposit),esc(c.contract.ejarNo||'غير موثق')]});
+    body=tbl(['شقة','المستأجر','البداية','النهاية','الأيام المتبقية','الإيجار السنوي','الدفع','التأمين','عقد إيجار'],rows,['','الإجمالي','','','',nf(sum(C,c=>cTot(c.contract))),'',nf(sum(C,c=>c.contract.deposit)),'']);
+    csv=[['شقة','المستأجر','البداية','النهاية','الأيام المتبقية','الإيجار السنوي','الدفع','التأمين','عقد إيجار'],...C.map(c=>[c.unit,c.tenant.name,c.contract.start,cEnd(c.contract),dBetween(t,cEnd(c.contract)),cTot(c.contract),CYC_SHORT[c.contract.cycle],c.contract.deposit,c.contract.ejarNo])];}
   else if(repType==='elec'){title='تقرير الكهرباء لسنة '+Y;
     const head=['شقة',...MONTHS.map(m=>m.slice(0,6)),'الإجمالي','غير مسدد'];
     const rows=UNITS.map(n=>{const e=elecStatus(n);const per=MONTHS.map((_,i)=>{const p=Y+'-'+String(i+1).padStart(2,'0');const b=e.bills.filter(x=>x.period===p);return b.length?{a:sum(b,x=>x.amount),s:b.every(x=>x._st==='paid')}:null});return{n,per,tot:sum(per.filter(Boolean),x=>x.a),out:e.outstanding}});
@@ -674,9 +683,9 @@ function buildReport(){
     csv=[['التاريخ','البند','يخص','الوصف','المبلغ'],...E.map(e=>[e.date,e.category,e.unit||'العمارة',e.note,e.amount])];}
   else if(repType==='history'){title='أرشيف المستأجرين السابقين';
     const A=Object.values(S.archive).sort((a,b)=>(b.endedAt||'').localeCompare(a.endedAt||''));
-    const rows=A.map(a=>{const I=schedule(a.contract,a.unit);return[a.unit,esc(a.tenant&&a.tenant.name||'-'),fd(a.contract.start),fd(a.endedAt),nf(a.contract.annualRent),nf(sum(I,i=>i.paid)),nf(sum(I,remain)),esc(a.endNote||'')]});
+    const rows=A.map(a=>{const I=schedule(a.contract,a.unit);return[a.unit,esc(a.tenant&&a.tenant.name||'-'),fd(a.contract.start),fd(a.endedAt),nf(cTot(a.contract)),nf(sum(I,i=>i.paid)),nf(sum(I,remain)),esc(a.endNote||'')]});
     body=tbl(['شقة','المستأجر','البداية','الإخلاء','الإيجار السنوي','المدفوع','المتبقي عليه','ملاحظات'],rows);
-    csv=[['شقة','المستأجر','البداية','الإخلاء','الإيجار السنوي','المدفوع','المتبقي','ملاحظات'],...A.map(a=>{const I=schedule(a.contract,a.unit);return[a.unit,a.tenant&&a.tenant.name,a.contract.start,a.endedAt,a.contract.annualRent,sum(I,i=>i.paid),sum(I,remain),a.endNote]})];}
+    csv=[['شقة','المستأجر','البداية','الإخلاء','الإيجار السنوي','المدفوع','المتبقي','ملاحظات'],...A.map(a=>{const I=schedule(a.contract,a.unit);return[a.unit,a.tenant&&a.tenant.name,a.contract.start,a.endedAt,cTot(a.contract),sum(I,i=>i.paid),sum(I,remain),a.endNote]})];}
   return{title,body,csv};
 }
 function vRep(){
