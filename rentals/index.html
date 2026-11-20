@@ -398,6 +398,7 @@ function vUnits(){
     ${occupied(u)?`<button class="btn sm sec2" onclick="payFilter={unit:'${n}',status:'all'};go('pay')">💰 الدفعات</button>
     ${u.tenant.phone?`<a class="btn sm wa" href="${waLink(u.tenant.phone,'السلام عليكم '+u.tenant.name+'، ')}" target="_blank" rel="noopener">واتساب</a>`:''}
     ${c.id?`<button class="btn sm ghost" onclick="renewModal(${n})">🔁 تجديد</button>`:''}
+    ${schedule(c,n).some(i=>i.due<=today()&&iStatus(i)!=='paid')?`<button class="btn sm ghost" onclick="settleModal(${n})">✔️ تسوية السابق</button>`:''}
     <button class="btn sm warn" onclick="endModal(${n})">إخلاء / إنهاء</button>`:''}</div></div>`}).join('')+`</div>`;
 }
 function unitModal(n){
@@ -462,6 +463,17 @@ async function endContract(n,keepTenant){
   let nc={};if(keepTenant){const ns=iso(addDays(pd(cEnd(u.contract)),1));nc={id:uid('c'),start:ns,end:'',annualRent:c.annualRent,waterFee:c.waterFee||0,installmentAmount:c.installmentAmount||0,cycle:c.cycle,deposit:c.deposit,ejarNo:'',notes:''}}
   try{await dbSet('units/'+n,{no:n,side:u.side,floor:u.floor,tenant,contract:nc,elec:u.elec,notes:u.notes,updatedAt:Date.now()});closeModal();toast(keepTenant?'تم إنشاء عقد التجديد':'تم إخلاء الشقة وأرشفة العقد');if(keepTenant)unitModal(n)}catch(e){}
 }
+function settleModal(n){const u=unit(n);const open=schedule(u.contract,n).filter(i=>i.due<=today()&&iStatus(i)!=='paid');
+  openModal(`<h3>تسوية الأقساط السابقة · شقة ${n}<button class="x" onclick="closeModal()">×</button></h3>
+  <p class="small">استخدمها مرة وحدة عند بداية استخدام البرنامج، لتسجيل الأقساط اللي استلمتها قبل كذا. كل قسط تختاره يتسجل مسدد بالكامل بطريقة "رصيد افتتاحي".</p>
+  <div class="card" style="padding:10px">${open.map(i=>`<label style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line)"><input type="checkbox" class="stl" value="${i.id}" checked style="width:auto"> <span>${fd(i.due)} · ${money(remain(i))}</span></label>`).join('')}</div>
+  <p class="small muted">شيل العلامة عن أي قسط ما استلمته فعلاً، عشان يبقى متأخر.</p>
+  <div class="btns"><button class="btn" onclick="settleSave(${n})">✅ تسجيل المحدد كمسدد</button><button class="btn ghost" onclick="closeModal()">إلغاء</button></div>`)}
+async function settleSave(n){const ids=[...document.querySelectorAll('.stl:checked')].map(x=>x.value);if(!ids.length){closeModal();return}
+  const all=allInst();try{for(const id of ids){const i=all.find(x=>x.id===id);if(!i)continue;
+    const entries=[...i.entries.map(e=>({...e})),{amount:remain(i),date:i.due,method:'رصيد افتتاحي',note:'تسوية عند بداية استخدام البرنامج',rno:'',at:Date.now()}];
+    await dbSet('payments/'+id,{unit:i.unit,contractId:i.contractId,idx:i.idx,entries})}
+  closeModal();toast('تم تسجيل '+ids.length+' قسط كمسدد ✓')}catch(e){}}
 async function renewModal(n){const u=unit(n);if(!u.contract.start){toast('أكمل بيانات العقد أولاً');return}
   if(await ask(`سيُؤرشف العقد الحالي (ينتهي ${fd(cEnd(u.contract))}) ويُنشأ عقد جديد لنفس المستأجر يبدأ ${fd(iso(addDays(pd(cEnd(u.contract)),1)))} بنفس القيمة، وتقدر تعدلها بعدها.`,'تجديد'))endContract(n,true)}
 
