@@ -171,7 +171,6 @@ const CYCLES={annual:{m:12,l:'سنوي (دفعة واحدة)'},semi:{m:6,l:'نص
 const CYC_SHORT={annual:'سنوي',semi:'نصف سنوي',quarter:'ربع سنوي',monthly:'شهري'};
 const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const STL={paid:'مسدد','upcoming':'قادم','partial-up':'مدفوع جزئياً','partial':'متأخر جزئياً','late':'متأخر'};
-const ETYPE={bill:'فاتورة صادرة',paid:'سداد',due:'إشعار مستحقات',note:'ملاحظة'};
 const EXP_CATS=['صيانة','سباكة','كهرباء وتمديدات','تكييف','دهانات','نظافة','مياه','مصاعد','رسوم حكومية','عمولة سعي','تأمين','أخرى'];
 const PAY_METHODS=['تحويل بنكي','نقداً','منصة إيجار','شيك','أخرى'];
 const TABS=[['home','الرئيسية','🏠'],['units','الشقق','🚪'],['pay','الدفعات','💰'],['elec','الكهرباء','⚡'],['cards','البطاقات','🪪'],['exp','المصروفات','🧾'],['rep','التقارير','📊'],['set','الإعدادات','⚙️']];
@@ -280,53 +279,60 @@ function unitState(n){const u=unit(n);if(!occupied(u))return{st:'vacant',label:'
 
 /* ============ منطق الكهرباء ============ */
 function elecRows(n){return Object.values(S.elec).filter(e=>String(e.unit)===String(n))}
+const eOrder=(a,b)=>(a.seq||a.at||0)-(b.seq||b.at||0);
 function elecStatus(n){
-  const rows=elecRows(n);
-  const bills=rows.filter(r=>r.type==='bill').map(r=>({...r})).sort((a,b)=>(a.period||'').localeCompare(b.period||'')||(a.date||'').localeCompare(b.date||''));
-  const pays=rows.filter(r=>r.type==='paid').sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  let pool=sum(pays,p=>p.amount);
-  bills.forEach(b=>{const a=+b.amount||0;const take=Math.min(a,pool);pool=r2(pool-take);b._paid=take;b._st=take>=a-0.01?'paid':take>0?'partial':'late'});
-  const outstanding=r2(sum(bills,b=>(+b.amount||0)-b._paid));
-  const dues=rows.filter(r=>r.type==='due').sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  const lastDue=dues[dues.length-1];const lastPay=pays[pays.length-1];
-  const dueWarn=lastDue&&(!lastPay||(lastDue.date||'')>(lastPay.date||''))?lastDue:null;
-  return{bills,pays,outstanding,credit:r2(pool),lastBill:bills[bills.length-1],lastPay,lastDue,dueWarn};
+  const rows=elecRows(n).sort(eOrder);let bal=0,state={kind:'ok'},billed=0,paid=0;const events=[];
+  for(const r of rows){const a=+r.amount||0;let charge=0;const before=bal;
+    if(r.type==='paid'){bal=r2(Math.max(0,bal-a));paid+=a;if(bal<=0.01&&state.kind==='warn')state={kind:'ok'}}
+    else if(r.type==='bill'){if(r.arrears){charge=Math.max(0,r2(a-before));bal=a}else if(r.manual){charge=a;bal=r2(bal+a)}else{charge=a;bal=a}billed+=charge;if(r.cutDate)state={kind:'warn',date:r.cutDate}}
+    else if(r.type==='due'){if(a)bal=a;if(r.cutDate)state={kind:'warn',date:r.cutDate}}
+    else if(r.type==='cut'){if(a)bal=a;state={kind:'cut'}}
+    else if(r.type==='restored'){state={kind:'ok',restored:true}}
+    events.push({...r,_bal:bal,_charge:charge})}
+  const bills=events.filter(e=>e.type==='bill');const pays=events.filter(e=>e.type==='paid');
+  return{events,outstanding:r2(bal),state,billed:r2(billed),paid:r2(paid),lastBill:bills[bills.length-1],lastPay:pays[pays.length-1]};
 }
+function stateChip(e){if(e.state.kind==='cut')return'<span class="chip st-late">🔌 الخدمة مفصولة</span>';if(e.state.kind==='warn')return`<span class="chip st-late">⚠️ إنذار فصل ${esc(e.state.date)}</span>`;return''}
 
 /* ============ تحليل رسائل الكهرباء ============ */
 function normDigits(s){return String(s).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/٫/g,'.').replace(/٬/g,',')}
-const PAID_KW=['تم سداد','تم السداد','تم استلام','تم الدفع','تم دفع','سداد مبلغ','شكرا لسداد','شكراً لسداد','شكرا لك على سداد','شكراً لك على سداد','تم تحصيل','تمت عملية السداد','تم سداد فاتورة','paid','payment received','received your payment','payment of','thank you for paying'];
-const DUE_KW=['متأخر','متأخرة','مستحقات','مديونية','متراكم','فصل','إيقاف الخدمة','ايقاف الخدمة','قطع','تجنب','رصيد مستحق','المبلغ المستحق','overdue','disconnect','outstanding','unpaid'];
-const BILL_KW=['صدرت','صدور','فاتورة جديدة','إصدار فاتورة','اصدار فاتورة','فاتورتك','قيمة الفاتورة','مبلغ الفاتورة','bill issued','new bill','your bill','invoice'];
-const MONTH_NAMES=[[/كانون الثاني|يناير|جانفي|\bjan(uary)?\b/i,1],[/شباط|فبراير|فيفري|\bfeb(ruary)?\b/i,2],[/آذار|اذار|مارس|\bmar(ch)?\b/i,3],[/نيسان|أبريل|ابريل|إبريل|\bapr(il)?\b/i,4],[/أيار|ايار|مايو|\bmay\b/i,5],[/حزيران|يونيو|يونيه|\bjune?\b/i,6],[/تموز|يوليو|يوليه|\bjuly?\b/i,7],[/آب|اغسطس|أغسطس|\baug(ust)?\b/i,8],[/أيلول|ايلول|سبتمبر|\bsep(t|tember)?\b/i,9],[/تشرين الأول|تشرين الاول|أكتوبر|اكتوبر|\boct(ober)?\b/i,10],[/تشرين الثاني|نوفمبر|\bnov(ember)?\b/i,11],[/كانون الأول|كانون الاول|ديسمبر|\bdec(ember)?\b/i,12]];
-function splitMsgs(t){const parts=String(t).split(/\n\s*\n+/).map(s=>s.trim()).filter(Boolean);return parts}
+const has=(t,a)=>a.some(k=>t.includes(k.toLowerCase()));
+const KW={otp:['رمز التحقق','verification code','otp'],
+ paid:['شكرا لسداد','شكراً لسداد','تم سداد','تم السداد','تم استلام','تم الدفع','تم تحصيل','تمت عملية السداد','thank you for paying','payment received','received your payment'],
+ cut:['تم إيقاف الخدمة','تم ايقاف الخدمة','تم فصل','has been disconnected'],
+ restored:['تم إعادة الخدمة','تم اعادة الخدمة','service has been restored'],
+ restoreReq:['طلب إعادة الخدمة','طلب اعادة الخدمة'],
+ bill:['صدرت فاتورة','صدور فاتورة جديدة','فاتورة جديدة','bill issued','new bill'],
+ due:['تذكيرك بسداد','تذكيرك بصدور','المبلغ المستحق','سيتم إيقاف','سيتم ايقاف','مستحقات','overdue','outstanding'],
+ maint:['أعمال صيانة','اعمال صيانة']};
+function splitMsgs(t){t=String(t).replace(/\r/g,'');
+  let parts=t.split(/\n(?=[ \t]*(?:مرحبا|مرحباً|عزيزي|عميلنا|Dear |Hello ))/i).map(s=>s.trim()).filter(Boolean);
+  if(parts.length<=1)parts=t.split(/\n\s*\n+/).map(s=>s.trim()).filter(Boolean);
+  return parts}
 function parseMsg(raw){
   const t=normDigits(raw);const low=t.toLowerCase();
-  // الشقة
-  let unitNo='',by='';
-  const nums=(t.match(/[A-Za-z]{0,4}\d{4,}/g)||[]).map(s=>s.toUpperCase());
+  if(has(low,KW.otp))return{raw:raw.trim(),skip:'otp'};
+  let unitNo='',by='',acct='';
+  const nums=(t.match(/[A-Za-z]{0,4}\d{6,}/g)||[]).map(s=>s.toUpperCase());
   const masked=(t.match(/[*xX•]{2,}\s?(\d{3,8})/g)||[]).map(s=>s.replace(/\D/g,''));
   const F=[['account','رقم الحساب'],['subscription','رقم الاشتراك'],['meter','رقم العداد'],['meterLabel','الرقم على العداد']];
   outer:for(const n of UNITS){const e=unit(n).elec;for(const[f,l]of F){const v=String(e[f]||'').toUpperCase().trim();if(!v||v.length<4)continue;
-    if(t.toUpperCase().includes(v)||nums.some(x=>x.length>=6&&(x.endsWith(v)||v.endsWith(x)))||masked.some(m=>m.length>=3&&v.endsWith(m))){unitNo=String(n);by=l;break outer}}}
-  // النوع
-  const has=a=>a.some(k=>low.includes(k.toLowerCase()));
-  let type=has(PAID_KW)?'paid':has(DUE_KW)?'due':has(BILL_KW)?'bill':'bill';
-  // المبلغ
+    if(t.toUpperCase().includes(v)||masked.some(m=>m.length>=3&&v.endsWith(m))){unitNo=String(n);by=l;break outer}}}
+  const accM=t.match(/(?:حساب(?:ك)?(?:\s*رقم)?|account(?:\s*no\.?)?)\s*:?\s*(\d{8,})/i);if(accM)acct=accM[1];else if(nums.length)acct=nums[0];
+  let type='note';
+  const lowNoFuture=low.replace(/سيتم/g,'').replace(/will be/g,'');
+  if(has(low,KW.paid))type='paid';else if(has(lowNoFuture,KW.cut))type='cut';else if(has(low,KW.restored))type='restored';
+  else if(has(low,KW.restoreReq)||has(low,KW.maint))type='note';else if(has(low,KW.bill))type='bill';else if(has(low,KW.due))type='due';
   let amount='';
-  const am=t.match(/(\d[\d,]*(?:\.\d+)?)\s*(?:ريال|ر\.?\s?س|sar\b|sr\b)/i)||t.match(/(?:sar|ريال|ر\.س)\s*:?\s*(\d[\d,]*(?:\.\d+)?)/i)||t.match(/(?:بمبلغ|مبلغ|المبلغ|قيمة|قيمتها|بقيمة|amount)\s*(?:وقدره|قدره|المستحق|الفاتورة)?\s*:?\s*(\d[\d,]*(?:\.\d+)?)/i);
-  if(am){const v=parseFloat(am[1].replace(/,/g,''));if(v>0&&v<200000)amount=r2(v)}
-  // الفترة
-  let period='';const now=new Date();
-  const ym=t.match(/\b(20\d{2})\b/);
+  const am=t.match(/(\d[\d,]*(?:\.\d+)?)\s*(?:ريال|ر\.?\s?س|sar\b|sr\b)/i)||t.match(/(?:sar|ريال)\s*:?\s*(\d[\d,]*(?:\.\d+)?)/i)||t.match(/(?:بمبلغ|مبلغ|المبلغ|بقيمة|amount)\s*(?:اجمالي|إجمالي|وقدره)?\s*:?\s*(\d[\d,]*(?:\.\d+)?)/i);
+  if(am){const v=parseFloat(am[1].replace(/,/g,''));if(v>0&&v<500000)amount=r2(v)}
+  const arrears=/تشمل مستحقات سابقة|including previous/i.test(t);
+  let cutDate='';const cd=t.match(/(?:إيقاف|ايقاف)[^\n]*?بتاريخ\s*(\d{1,2}\/\d{1,2}\/\d{4})/);if(cd)cutDate=cd[1];
+  let period='';const now=new Date();const ym=t.match(/\b(20\d{2})\b/);
   for(const[re,m]of MONTH_NAMES){if(re.test(t)){let y=ym?+ym[1]:now.getFullYear();if(!ym&&m>now.getMonth()+1)y--;period=y+'-'+String(m).padStart(2,'0');break}}
-  let date=today();
-  const dm=t.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2})\b/)||null;const dm2=t.match(/\b(20\d{2})[\/\-.](\d{1,2})[\/\-.](\d{1,2})\b/);
-  if(dm2)date=dm2[1]+'-'+dm2[2].padStart(2,'0')+'-'+dm2[3].padStart(2,'0');else if(dm)date=dm[3]+'-'+dm[2].padStart(2,'0')+'-'+dm[1].padStart(2,'0');
-  if(!period)period=(type==='bill'?date:today()).slice(0,7);
-  if(type==='paid'&&!amount&&unitNo){const o=elecStatus(unitNo).outstanding;if(o>0)amount=o}
-  return{raw:raw.trim(),unit:unitNo,by,type,amount,period,date};
+  return{raw:raw.trim(),unit:unitNo,by,acct,type,amount,arrears,cutDate,period,date:today()};
 }
+const MONTH_NAMES=[[/كانون الثاني|يناير|\bjan(uary)?\b/i,1],[/شباط|فبراير|\bfeb(ruary)?\b/i,2],[/آذار|مارس|\bmar(ch)?\b/i,3],[/نيسان|أبريل|ابريل|\bapr(il)?\b/i,4],[/أيار|مايو|\bmay\b/i,5],[/حزيران|يونيو|\bjune?\b/i,6],[/تموز|يوليو|\bjuly?\b/i,7],[/آب|أغسطس|اغسطس|\baug(ust)?\b/i,8],[/أيلول|سبتمبر|\bsep(t|tember)?\b/i,9],[/تشرين الأول|أكتوبر|اكتوبر|\boct(ober)?\b/i,10],[/تشرين الثاني|نوفمبر|\bnov(ember)?\b/i,11],[/كانون الأول|ديسمبر|\bdec(ember)?\b/i,12]];
 
 /* ============ النوافذ ============ */
 function openModal(html){$('#sheet').innerHTML=html;$('#modal').classList.remove('hidden');document.body.style.overflow='hidden'}
@@ -373,7 +379,7 @@ function vHome(){
   late.forEach(i=>al.push(['late','⏰',`شقة ${i.unit}: قسط متأخر ${money(remain(i))}`,`${esc(i.tenant.name||'')} · كان مستحقاً ${fd(i.due)} (منذ ${dBetween(i.due,t)} يوم)`,`payModal('${i.id}')`]));
   soon.forEach(i=>al.push(['soon','📅',`شقة ${i.unit}: قسط قادم ${money(remain(i))}`,`${esc(i.tenant.name||'')} · يستحق ${fd(i.due)} (بعد ${dBetween(t,i.due)} يوم)`,`payModal('${i.id}')`]));
   expiring.forEach(c=>{const d=dBetween(t,cEnd(c.contract));al.push([d<0?'late':'soon','📄',`شقة ${c.unit}: العقد ${d<0?'منتهٍ منذ '+(-d)+' يوم':'ينتهي بعد '+d+' يوم'}`,`${esc(c.tenant.name||'')} · نهاية العقد ${fd(cEnd(c.contract))}، رتّب التجديد أو الإخلاء`,`unitModal(${c.unit})`])});
-  UNITS.forEach(n=>{const e=elecStatus(n);if(e.outstanding>0)al.push(['late','⚡',`شقة ${n}: كهرباء غير مسددة ${money(e.outstanding)}`,`${e.bills.filter(b=>b._st!=='paid').length} فاتورة مفتوحة`,`go('elec')`]);else if(e.dueWarn)al.push(['soon','⚡',`شقة ${n}: إشعار مستحقات من الكهرباء ${e.dueWarn.amount?money(e.dueWarn.amount):''}`,`بتاريخ ${fd(e.dueWarn.date)}`,`go('elec')`])});
+  UNITS.forEach(n=>{const e=elecStatus(n);if(e.state.kind==='cut')al.push(['late','🔌',`شقة ${n}: الكهرباء مفصولة`,`المستحق ${money(e.outstanding)}`,`go('elec')`]);else if(e.state.kind==='warn')al.push(['late','⚠️',`شقة ${n}: إنذار فصل الكهرباء بتاريخ ${e.state.date}`,`المستحق ${money(e.outstanding)}`,`go('elec')`]);else if(e.outstanding>0)al.push(['soon','⚡',`شقة ${n}: كهرباء غير مسددة ${money(e.outstanding)}`,'حسب آخر رسالة من الشركة',`go('elec')`])});
   UNITS.forEach(n=>{const u=unit(n);if(!occupied(u))al.push(['vacant','🚪',`شقة ${n} شاغرة`,loc(u),`unitModal(${n})`]);else{
     if(!u.contract.start||!cTot(u.contract))al.push(['soon','📝',`شقة ${n}: أكمل بيانات العقد`,'تاريخ البداية وقيمة الإيجار ونظام الدفع',`unitModal(${n})`]);
     else if(!u.contract.ejarNo)al.push(['vacant','🔖',`شقة ${n}: لم يُسجل رقم عقد إيجار`,'التوثيق في منصة إيجار يحمي حقك',`unitModal(${n})`]);}
@@ -527,49 +533,66 @@ async function delEntry(pid,k){const i=allInst().find(x=>x.id===pid);if(!await a
   const entries=i.entries.filter((_,j)=>j!==k).map(e=>({...e}));try{if(entries.length)await dbSet('payments/'+pid,{unit:i.unit,contractId:i.contractId,idx:i.idx,entries});else await dbDel('payments/'+pid);toast('تم الحذف')}catch(e){}}
 
 /* ---------- الكهرباء ---------- */
+let pasteOrder='newest',showOther=false;
+const ETYPE={bill:'فاتورة',paid:'سداد',due:'تذكير / مستحقات',cut:'فصل الخدمة',restored:'إعادة الخدمة',note:'ملاحظة'};
+const ETCLS={bill:'st-upcoming',paid:'st-paid',due:'st-soon',cut:'st-late',restored:'st-ok',note:'st-vacant'};
 function vElec(){
-  let h=`<div class="card"><b>📩 الصق رسائل شركة الكهرباء هنا</b><p class="small muted" style="margin:4px 0 8px">تقدر تلصق أكثر من رسالة، افصل بينها بسطر فاضي. البرنامج يتعرف على الشقة من رقم الحساب أو الاشتراك أو العداد، ويحدد هل هي فاتورة أو سداد أو مستحقات، ويستخرج المبلغ والشهر.</p>
-   <textarea id="pasteBox" rows="5" placeholder="الصق الرسالة هنا..." oninput="pasteDraft=this.value"></textarea>
+  let h=`<div class="card"><b>📩 الصق رسائل شركة الكهرباء هنا</b><p class="small muted" style="margin:4px 0 8px">الصق رسالة وحدة أو مجموعة رسائل مع بعض. البرنامج يفصلها لحاله، ويعرف الشقة من رقم الحساب، ويميز الفاتورة والسداد والتذكير وإنذار الفصل، ويتجاهل رموز التحقق والحسابات اللي مو تابعة للعمارة.</p>
+   <textarea id="pasteBox" rows="5" placeholder="الصق الرسائل هنا..." oninput="pasteDraft=this.value"></textarea>
+   <div class="filters" style="margin:8px 0 0"><select onchange="pasteOrder=this.value"><option value="newest" ${pasteOrder==='newest'?'selected':''}>الرسائل مرتبة: الأحدث فوق</option><option value="oldest" ${pasteOrder==='oldest'?'selected':''}>الرسائل مرتبة: الأقدم فوق</option></select></div>
    <div class="btns"><button class="btn" onclick="doParse()">🔍 تحليل الرسائل</button><button class="btn ghost" onclick="elecManual()">➕ إدخال يدوي</button></div></div>`;
-  if(parsed.length){h+=`<h2 class="sec">👀 راجع النتائج قبل الحفظ</h2>`+parsed.map((p,k)=>`<div class="pv"><div class="raw">${esc(p.raw)}</div>
-    ${p.unit?`<div class="small" style="color:var(--green);margin-bottom:6px">✓ تم التعرف على الشقة ${p.unit} من ${p.by}</div>`:`<div class="small" style="color:var(--red);margin-bottom:6px">⚠️ لم يُتعرف على الشقة، اخترها يدوياً</div>`}
-    ${p.dup?`<div class="small" style="color:var(--amber);margin-bottom:6px">⚠️ هذه الرسالة محفوظة من قبل</div>`:''}
-    <div class="form"><label>الشقة<select onchange="parsed[${k}].unit=this.value"><option value="">اختر</option>${UNITS.map(n=>`<option value="${n}" ${p.unit==n?'selected':''}>شقة ${n}</option>`).join('')}</select></label>
-    <label>النوع<select onchange="parsed[${k}].type=this.value">${Object.entries(ETYPE).map(([a,b])=>`<option value="${a}" ${p.type===a?'selected':''}>${b}</option>`).join('')}</select></label>
-    <label>المبلغ<input inputmode="decimal" value="${esc(p.amount)}" oninput="parsed[${k}].amount=this.value"></label>
-    <label>عن شهر<input type="month" value="${esc(p.period)}" oninput="parsed[${k}].period=this.value"></label>
-    <label>تاريخ الرسالة<input type="date" value="${esc(p.date)}" oninput="parsed[${k}].date=this.value"></label></div>
-    <div class="btns"><button class="btn sm ghost" onclick="parsed.splice(${k},1);render()">استبعاد</button></div></div>`).join('')+
-    `<div class="btns" style="margin-bottom:10px"><button class="btn" onclick="saveParsed()">💾 حفظ الكل (${parsed.length})</button><button class="btn ghost" onclick="parsed=[];render()">إلغاء</button></div>`}
+  if(parsed.length){
+    const mine=parsed.filter(p=>p.unit&&!p.skip),other=parsed.filter(p=>!p.unit&&!p.skip),otp=parsed.filter(p=>p.skip);
+    const per={};mine.forEach(p=>{per[p.unit]=(per[p.unit]||0)+1});
+    h+=`<div class="card"><b>👀 نتيجة التحليل: ${parsed.length} رسالة</b><dl class="kv small" style="margin-top:8px">
+      <dt>✅ للعمارة</dt><dd>${mine.length} رسالة ${Object.keys(per).sort().map(k=>`<span class="chip st-ok">شقة ${k}: ${per[k]}</span>`).join(' ')}</dd>
+      <dt>➖ حسابات أخرى</dt><dd>${other.length} رسالة ما بتنحفظ${other.length?` <a href="#" onclick="showOther=!showOther;render();return false" style="color:var(--pri)">${showOther?'إخفاء':'عرض'}</a>`:''}</dd>
+      ${otp.length?`<dt>🔒 رموز تحقق</dt><dd>${otp.length} تم تجاهلها</dd>`:''}${mine.filter(p=>p.dup).length?`<dt>♻️ مكررة</dt><dd>${mine.filter(p=>p.dup).length} محفوظة من قبل وما بتتكرر</dd>`:''}</dl>
+      <div class="btns"><button class="btn" onclick="saveParsed()">💾 حفظ رسائل العمارة (${mine.filter(p=>!p.dup).length})</button><button class="btn ghost" onclick="parsed=[];render()">إلغاء</button></div></div>`;
+    const list=parsed.map((p,k)=>({p,k})).filter(({p})=>!p.skip&&(p.unit||showOther));
+    h+=`<div class="tbl" style="margin-bottom:12px"><table><tr><th>الشقة</th><th>النوع</th><th>المبلغ</th><th>الرسالة</th></tr>${list.map(({p,k})=>`<tr style="${p.dup?'opacity:.5':''}">
+      <td><select style="min-width:84px;padding:5px" onchange="parsed[${k}].unit=this.value"><option value="">غير تابع</option>${UNITS.map(n=>`<option value="${n}" ${p.unit==n?'selected':''}>شقة ${n}</option>`).join('')}</select></td>
+      <td><select style="min-width:100px;padding:5px" onchange="parsed[${k}].type=this.value">${Object.entries(ETYPE).map(([a,b])=>`<option value="${a}" ${p.type===a?'selected':''}>${b}</option>`).join('')}</select>${p.arrears?'<div class="small muted">تشمل متأخرات</div>':''}${p.cutDate?`<div class="small" style="color:var(--red)">إنذار فصل ${esc(p.cutDate)}</div>`:''}</td>
+      <td><input style="width:90px;padding:5px" inputmode="decimal" value="${esc(p.amount)}" oninput="parsed[${k}].amount=this.value"></td>
+      <td class="small muted" style="max-width:340px">${esc(p.raw.replace(/\s+/g,' ').slice(0,140))}${p.acct&&!p.unit?`<div>حساب <span class="num">${esc(p.acct)}</span></div>`:''}</td></tr>`).join('')}</table></div>`;
+  }
   h+=`<h2 class="sec">⚡ حالة الكهرباء لكل شقة</h2><div class="grid g2">`+UNITS.map(n=>{const u=unit(n);const e=elecStatus(n);
-    const st=e.outstanding>0?'late':e.dueWarn?'soon':e.bills.length?'paid':'vacant';
-    const lbl=e.outstanding>0?'غير مسدد '+money(e.outstanding):e.dueWarn?'يوجد إشعار مستحقات':e.bills.length?'مسدد بالكامل':'لا توجد فواتير';
-    const recent=e.bills.slice(-6).reverse();
+    const st=e.state.kind==='cut'||e.outstanding>0?'late':e.events.length?'paid':'vacant';
+    const lbl=e.outstanding>0?'مستحق '+money(e.outstanding):e.events.length?'لا يوجد مستحقات':'لا توجد رسائل';
+    const recent=e.events.filter(x=>['bill','paid','due','cut','restored'].includes(x.type)).slice(-6).reverse();
     return`<div class="card"><div class="uhead"><div style="display:flex;gap:10px;align-items:center"><div class="ubadge">${n}</div><div><b>${occupied(u)?esc(u.tenant.name):'شاغرة'}</b><div class="small muted num">حساب ${esc(u.elec.account||'-')}</div></div></div><span class="chip st-${st}">${lbl}</span></div>
-    <dl class="kv small"><dt>آخر فاتورة</dt><dd>${e.lastBill?perLabel(e.lastBill.period)+' · '+money(e.lastBill.amount):'-'}</dd><dt>آخر سداد</dt><dd>${e.lastPay?fd(e.lastPay.date)+' · '+money(e.lastPay.amount):'-'}</dd>${e.credit>0?`<dt>رصيد زائد</dt><dd style="color:var(--green)">${money(e.credit)}</dd>`:''}${e.lastDue?`<dt>آخر إشعار مستحقات</dt><dd>${fd(e.lastDue.date)}${e.lastDue.amount?' · '+money(e.lastDue.amount):''}</dd>`:''}</dl>
-    ${recent.length?`<div class="tbl" style="margin-top:10px"><table><tr><th>الشهر</th><th>الفاتورة</th><th>الحالة</th></tr>${recent.map(b=>`<tr><td>${perLabel(b.period)}</td><td>${money(b.amount)}</td><td><span class="chip st-${b._st}">${b._st==='paid'?'مسددة':b._st==='partial'?'جزئي':'غير مسددة'}</span></td></tr>`).join('')}</table></div>`:''}
-    <div class="btns"><button class="btn sm sec2" onclick="elecLog(${n})">📜 السجل الكامل</button>${e.outstanding>0&&u.tenant.phone?`<a class="btn sm wa" target="_blank" rel="noopener" href="${waLink(u.tenant.phone,`السلام عليكم ${u.tenant.name}\nنفيدكم بوجود فواتير كهرباء غير مسددة على شقة رقم ${n} بإجمالي ${money(e.outstanding)} (رقم الحساب ${u.elec.account||''}). نأمل سرعة السداد لتجنب فصل الخدمة.\nشاكرين تعاونكم.`)}">💬 تذكير</a>`:''}</div></div>`}).join('')+`</div>`;
+    ${stateChip(e)}
+    <dl class="kv small" style="margin-top:6px"><dt>آخر فاتورة</dt><dd>${e.lastBill?money(e.lastBill.amount)+(e.lastBill.arrears?' (مع متأخرات)':''):'-'}</dd><dt>آخر سداد</dt><dd>${e.lastPay?money(e.lastPay.amount):'-'}</dd><dt>إجمالي المسدد</dt><dd>${money(e.paid)}</dd></dl>
+    ${recent.length?`<div class="tbl" style="margin-top:10px"><table><tr><th>الحركة</th><th>المبلغ</th><th>الرصيد بعدها</th></tr>${recent.map(x=>`<tr><td><span class="chip ${ETCLS[x.type]}">${ETYPE[x.type]}</span></td><td>${x.amount?nf(x.amount):'-'}</td><td>${nf(x._bal)}</td></tr>`).join('')}</table></div>`:''}
+    <div class="btns"><button class="btn sm sec2" onclick="elecLog(${n})">📜 السجل الكامل</button>${e.outstanding>0&&u.tenant.phone?`<a class="btn sm wa" target="_blank" rel="noopener" href="${waLink(u.tenant.phone,`السلام عليكم ${u.tenant.name}\nنفيدكم بوجود مبلغ مستحق على كهرباء شقة رقم ${n} بقيمة ${money(e.outstanding)} (رقم الحساب ${u.elec.account||''}).${e.state.kind==='warn'?`\nوحسب رسالة الشركة سيتم إيقاف الخدمة بتاريخ ${e.state.date}.`:''}\nنأمل سرعة السداد عبر تطبيق السعودية للطاقة.\nشاكرين تعاونكم.`)}">💬 تذكير</a>`:''}</div></div>`}).join('')+`</div>`;
   return h;
 }
 function doParse(){const t=pasteDraft.trim();if(!t){toast('الصق رسالة أولاً');return}
-  const raws=new Set(Object.values(S.elec).map(e=>(e.raw||'').trim()));
-  parsed=splitMsgs(t).map(parseMsg).map(p=>({...p,dup:raws.has(p.raw)}));render();
-  toast(`تم تحليل ${parsed.length} رسالة`)}
+  const raws=new Set(Object.values(S.elec).map(e=>(e.raw||'').replace(/\s+/g,' ').trim()));
+  const seen=new Set();
+  parsed=splitMsgs(t).map(parseMsg).map(p=>{const key=p.raw.replace(/\s+/g,' ').trim();return{...p,dup:raws.has(key)}});
+  parsed.forEach((p,i)=>{if(!p.unit&&!p.skip&&(p.type==='restored'||/إعادة الخدمة|اعادة الخدمة/.test(p.raw))){for(const q of [parsed[i+1],parsed[i-1]]){if(q&&q.unit&&/إعادة الخدمة|اعادة الخدمة/.test(q.raw)){p.unit=q.unit;p.by='رسالة طلب الإعادة المرتبطة';break}}}});
+  render();toast(`تم تحليل ${parsed.length} رسالة`)}
 async function saveParsed(){
-  const miss=parsed.filter(p=>!p.unit);if(miss.length){toast('حدد الشقة لكل رسالة');return}
-  let k=0;for(const p of parsed){if(p.type!=='note'&&!(+p.amount>0)&&p.type!=='due'){toast('اكتب المبلغ للرسالة رقم '+(k+1));return}k++}
-  try{for(const p of parsed){await dbSet('elec/'+uid('e'),{unit:+p.unit,type:p.type,amount:r2(p.amount),period:p.period,date:p.date,raw:p.raw,at:Date.now()})}
-    toast('تم الحفظ وتحديث حالة الكهرباء ✓');parsed=[];pasteDraft='';render()}catch(e){}
+  const list=parsed.map((p,i)=>({...p,i})).filter(p=>p.unit&&!p.skip&&!p.dup);if(!list.length){toast('ما فيه رسائل جديدة للحفظ');return}
+  const N=parsed.length,base=Date.now()*100;
+  try{for(const p of list){const pos=pasteOrder==='newest'?N-1-p.i:p.i;
+      await dbSet('elec/'+uid('e'),{unit:+p.unit,type:p.type,amount:r2(p.amount),arrears:!!p.arrears,cutDate:p.cutDate||'',period:p.period||'',date:p.date,raw:p.raw,seq:base+pos,at:Date.now()})}
+    toast(`تم حفظ ${list.length} رسالة وتحديث الكهرباء ✓`);parsed=[];pasteDraft='';render()}catch(e){}
 }
 function elecManual(){openModal(`<h3>إدخال كهرباء يدوي<button class="x" onclick="closeModal()">×</button></h3><div class="form">
   <label>الشقة<select id="m_unit">${UNITS.map(n=>`<option value="${n}">شقة ${n}</option>`).join('')}</select></label>
   <label>النوع<select id="m_type">${Object.entries(ETYPE).map(([a,b])=>`<option value="${a}">${b}</option>`).join('')}</select></label>
   <label>المبلغ<input id="m_amt" inputmode="decimal"></label><label>عن شهر<input type="month" id="m_per" value="${today().slice(0,7)}"></label>
   <label>التاريخ<input type="date" id="m_date" value="${today()}"></label><label class="full">ملاحظة<input id="m_note"></label></div>
+  <p class="small muted">"تذكير / مستحقات" يعني المبلغ المستحق الكلي حسب الشركة. "فاتورة" تنضاف على الرصيد.</p>
   <div class="btns"><button class="btn" onclick="saveManual()">💾 حفظ</button></div>`)}
-async function saveManual(){try{await dbSet('elec/'+uid('e'),{unit:+v('m_unit'),type:v('m_type'),amount:r2(v('m_amt')),period:v('m_per'),date:v('m_date'),raw:v('m_note'),manual:true,at:Date.now()});closeModal();toast('تم الحفظ ✓')}catch(e){}}
-function elecLog(n){const rows=elecRows(n).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.at||0)-(a.at||0));
-  openModal(`<h3>سجل كهرباء شقة ${n}<button class="x" onclick="closeModal()">×</button></h3>${rows.length?rows.map(r=>`<div class="card" style="padding:12px"><div class="inst"><div><span class="chip ${r.type==='paid'?'st-paid':r.type==='bill'?'st-upcoming':r.type==='due'?'st-late':'st-vacant'}">${ETYPE[r.type]}</span> <b>${r.amount?money(r.amount):''}</b><div class="small muted">${perLabel(r.period)} · ${fd(r.date)}</div>${r.raw?`<div class="small muted" style="margin-top:4px;white-space:pre-wrap">${esc(r.raw).slice(0,300)}</div>`:''}</div><button class="btn sm warn" onclick="delElec('${r._id}',${n})">🗑</button></div></div>`).join(''):'<div class="empty">لا يوجد سجل</div>'}`)}
+async function saveManual(){try{await dbSet('elec/'+uid('e'),{unit:+v('m_unit'),type:v('m_type'),amount:r2(v('m_amt')),period:v('m_per'),date:v('m_date'),raw:v('m_note'),manual:true,seq:Date.now()*100,at:Date.now()});closeModal();toast('تم الحفظ ✓')}catch(e){}}
+function elecLog(n){const e=elecStatus(n);const rows=[...e.events].reverse();
+  openModal(`<h3>سجل كهرباء شقة ${n}<button class="x" onclick="closeModal()">×</button></h3>${rows.length?`<div class="btns" style="margin:0 0 10px"><button class="btn sm warn" onclick="delElecAll(${n})">🗑 حذف كل سجل الشقة</button></div>`+rows.map(r=>`<div class="card" style="padding:12px"><div class="inst"><div><span class="chip ${ETCLS[r.type]||'st-vacant'}">${ETYPE[r.type]||r.type}</span> <b>${r.amount?money(r.amount):''}</b> <span class="small muted">الرصيد بعدها ${nf(r._bal)}</span>${r.raw?`<div class="small muted" style="margin-top:4px;white-space:pre-wrap">${esc(r.raw).slice(0,300)}</div>`:''}</div><button class="btn sm warn" onclick="delElec('${r._id}',${n})">🗑</button></div></div>`).join(''):'<div class="empty">لا يوجد سجل</div>'}`)}
+async function delElecAll(n){if(!await ask(`حذف كل سجلات كهرباء شقة ${n}؟ تقدر تلصق الرسائل من جديد بعدها.`,'حذف الكل'))return;
+  try{for(const r of elecRows(n))await dbDel('elec/'+r._id);toast('تم حذف السجل')}catch(e){}}
+
 async function delElec(id,n){if(!await ask('حذف هذا السجل؟','حذف'))return;try{await dbDel('elec/'+id);toast('تم الحذف');setTimeout(()=>elecLog(n),300)}catch(e){}}
 
 /* ---------- البطاقات ---------- */
@@ -647,7 +670,7 @@ function buildReport(){
   const t=today(),Y=String(repYear);const ins=allInst();const ents=allEntries();const exps=Object.values(S.expenses);
   let title='',body='',csv=[];
   if(repType==='summary'){title='الملخص المالي لسنة '+Y;
-    const m=MONTHS.map((nm,i)=>{const p=Y+'-'+String(i+1).padStart(2,'0');const exp=sum(ins.filter(x=>x.due.startsWith(p)),x=>x.amount);const col=sum(ents.filter(e=>(e.date||'').startsWith(p)),e=>e.amount);const ex=sum(exps.filter(e=>(e.date||'').startsWith(p)),e=>e.amount);const el=sum(Object.values(S.elec).filter(e=>e.type==='bill'&&(e.period||'')===p),e=>e.amount);return{nm,exp,col,ex,el,net:col-ex}});
+    const m=MONTHS.map((nm,i)=>{const p=Y+'-'+String(i+1).padStart(2,'0');const exp=sum(ins.filter(x=>x.due.startsWith(p)),x=>x.amount);const col=sum(ents.filter(e=>(e.date||'').startsWith(p)),e=>e.amount);const ex=sum(exps.filter(e=>(e.date||'').startsWith(p)),e=>e.amount);const el=sum(Object.values(S.elec).filter(e=>e.type==='bill'&&((e.period||'')===p||(!e.period&&(e.date||'').startsWith(p)))),e=>e.amount);return{nm,exp,col,ex,el,net:col-ex}});
     const TE=sum(m,x=>x.exp),TC=sum(m,x=>x.col),TX=sum(m,x=>x.ex),TL=sum(m,x=>x.el);const mx=Math.max(1,...m.map(x=>Math.max(x.exp,x.col)));
     const lateAmt=sum(ins.filter(i=>['late','partial'].includes(iStatus(i))),remain);
     body=`<div class="kpis" style="margin-bottom:12px">${kpi('🎯','المتوقع تحصيله',money(TE),'blue')}${kpi('💵','المحصّل فعلياً',money(TC),'green')}${kpi('📊','نسبة التحصيل',(TE?Math.round(TC/TE*100):0)+'%','pri')}${kpi('🧾','المصروفات',money(TX),'amber')}${kpi('💰','صافي الدخل',money(TC-TX),'green')}${kpi('⏰','إجمالي المتأخرات الآن',money(lateAmt),'red')}</div>
@@ -682,11 +705,11 @@ function buildReport(){
     const rows=C.map(c=>{const e=cEnd(c.contract);const d=dBetween(t,e);return[c.unit,esc(c.tenant.name),fd(c.contract.start),fd(e),d<0?`<span style="color:var(--red)">منتهي منذ ${-d}</span>`:d<=60?`<span style="color:var(--amber)">${d}</span>`:d,nf(cTot(c.contract)),CYC_SHORT[c.contract.cycle]||'-',nf(c.contract.deposit),esc(c.contract.ejarNo||'غير موثق')]});
     body=tbl(['شقة','المستأجر','البداية','النهاية','الأيام المتبقية','الإيجار السنوي','الدفع','التأمين','عقد إيجار'],rows,['','الإجمالي','','','',nf(sum(C,c=>cTot(c.contract))),'',nf(sum(C,c=>c.contract.deposit)),'']);
     csv=[['شقة','المستأجر','البداية','النهاية','الأيام المتبقية','الإيجار السنوي','الدفع','التأمين','عقد إيجار'],...C.map(c=>[c.unit,c.tenant.name,c.contract.start,cEnd(c.contract),dBetween(t,cEnd(c.contract)),cTot(c.contract),CYC_SHORT[c.contract.cycle],c.contract.deposit,c.contract.ejarNo])];}
-  else if(repType==='elec'){title='تقرير الكهرباء لسنة '+Y;
-    const head=['شقة',...MONTHS.map(m=>m.slice(0,6)),'الإجمالي','غير مسدد'];
-    const rows=UNITS.map(n=>{const e=elecStatus(n);const per=MONTHS.map((_,i)=>{const p=Y+'-'+String(i+1).padStart(2,'0');const b=e.bills.filter(x=>x.period===p);return b.length?{a:sum(b,x=>x.amount),s:b.every(x=>x._st==='paid')}:null});return{n,per,tot:sum(per.filter(Boolean),x=>x.a),out:e.outstanding}});
-    body=`<div class="kpis" style="margin-bottom:12px">${kpi('⚡','إجمالي الفواتير',money(sum(rows,r=>r.tot)),'blue')}${kpi('⏰','غير مسدد حالياً',money(sum(rows,r=>r.out)),'red')}</div><p class="small muted">🟢 مسددة · 🔴 غير مسددة</p>`+tbl(head,rows.map(r=>[r.n,...r.per.map(x=>x?`${x.s?'🟢':'🔴'} ${nf(x.a)}`:'-'),nf(r.tot),nf(r.out)]));
-    csv=[head,...rows.map(r=>[r.n,...r.per.map(x=>x?x.a:''),r.tot,r.out])];}
+  else if(repType==='elec'){title='تقرير الكهرباء';
+    const rows=UNITS.map(n=>{const u=unit(n);const e=elecStatus(n);return[n,occupied(u)?u.tenant.name:'شاغرة',u.elec.account||'',e.billed,e.paid,e.outstanding,e.state.kind==='cut'?'مفصولة':e.state.kind==='warn'?'إنذار فصل '+e.state.date:'متصلة',e.events.filter(x=>x.type==='bill').length]});
+    body=`<div class="kpis" style="margin-bottom:12px">${kpi('🧾','إجمالي الفواتير المسجلة',money(sum(rows,r=>r[3])),'blue')}${kpi('✅','إجمالي المسدد',money(sum(rows,r=>r[4])),'green')}${kpi('⏰','المستحق حالياً',money(sum(rows,r=>r[5])),'red')}</div>`+
+      tbl(['شقة','المستأجر','رقم الحساب','الفواتير','المسدد','المستحق الآن','حالة الخدمة','عدد الفواتير'],rows.map(r=>[r[0],esc(r[1]),`<span class="num">${esc(r[2])}</span>`,nf(r[3]),nf(r[4]),r[5]>0?`<b style="color:var(--red)">${nf(r[5])}</b>`:nf(r[5]),r[6],r[7]]),['','الإجمالي','',nf(sum(rows,r=>r[3])),nf(sum(rows,r=>r[4])),nf(sum(rows,r=>r[5])),'','']);
+    csv=[['شقة','المستأجر','رقم الحساب','الفواتير','المسدد','المستحق الآن','حالة الخدمة','عدد الفواتير'],...rows];}
   else if(repType==='expenses'){title='تقرير المصروفات لسنة '+Y;
     const E=exps.filter(e=>(e.date||'').startsWith(Y));const cats=[...new Set(E.map(e=>e.category))];
     const byCat=cats.map(c=>[c,sum(E.filter(e=>e.category===c),e=>e.amount)]).sort((a,b)=>b[1]-a[1]);const mx=Math.max(1,...byCat.map(x=>x[1]));
