@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f766e">
+<title>إدارة إيجارات عمارة طيبة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../shared/firebase-config.js"></script>
+<style>
+:root{
+  --bg:#f5f2ea;--card:#ffffff;--ink:#1f2d2b;--muted:#6b7a76;--line:#e7e1d4;
+  --pri:#0f766e;--pri2:#14b8a6;--priSoft:#e3f3ef;
+  --amber:#d98e1f;--amberSoft:#fdf2df;
+  --green:#15803d;--greenSoft:#e5f5ea;
+  --red:#c2410c;--redSoft:#fdebe4;
+  --blue:#2563eb;--blueSoft:#e6eefc;
+  --grey:#8a948f;--greySoft:#eeefec;
+  --r:18px;--sh:0 6px 22px rgba(31,45,43,.07);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:15px;line-height:1.55}
+body{padding-bottom:calc(30px + env(safe-area-inset-bottom))}
+button,input,select,textarea{font-family:inherit;font-size:15px}
+.top{background:linear-gradient(120deg,#0f766e,#14a38f 60%,#2bb39b);color:#fff;padding:calc(18px + env(safe-area-inset-top)) 18px 54px;position:relative}
+.top .row{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1100px;margin:auto}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:26px}
+.brand h1{margin:0;font-size:20px;font-weight:700}
+.brand p{margin:0;opacity:.85;font-size:13px}
+.sync{font-size:12px;background:rgba(255,255,255,.18);padding:6px 10px;border-radius:999px;white-space:nowrap}
+nav#tabs{position:sticky;top:0;z-index:20;max-width:1100px;margin:-38px auto 0;padding:0 12px}
+.tabbar{display:flex;gap:6px;overflow-x:auto;background:#fff;border-radius:16px;padding:6px;box-shadow:var(--sh);scrollbar-width:none}
+.tabbar::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;border:0;background:transparent;padding:9px 13px;border-radius:12px;color:var(--muted);font-weight:600;cursor:pointer;display:flex;gap:6px;align-items:center}
+.tab.on{background:var(--priSoft);color:var(--pri)}
+main{max-width:1100px;margin:auto;padding:16px 12px}
+h2.sec{font-size:17px;margin:22px 4px 10px;display:flex;align-items:center;gap:8px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.kpi{background:#fff;border-radius:var(--r);padding:14px;box-shadow:var(--sh);border-top:4px solid var(--c)}
+.kpi .i{font-size:20px}.kpi .l{color:var(--muted);font-size:13px}.kpi .v{font-size:20px;font-weight:700;margin-top:2px}
+.card{background:#fff;border-radius:var(--r);box-shadow:var(--sh);padding:16px;margin-bottom:12px}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.building{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:#fff;border-radius:var(--r);padding:12px;box-shadow:var(--sh)}
+.floorlbl{grid-column:1/-1;font-size:12px;color:var(--muted);margin:4px 4px -4px}
+.mu{border-radius:14px;padding:12px;cursor:pointer;border:2px solid transparent;background:var(--s);transition:.15s}
+.mu:active{transform:scale(.98)}
+.mu .n{font-weight:700;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+.mu .t{font-size:13px;color:var(--ink);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mu .s{font-size:12px;color:var(--c);font-weight:600;margin-top:2px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;background:var(--s);color:var(--c);white-space:nowrap}
+.st-paid{--s:var(--greenSoft);--c:var(--green)}
+.st-upcoming{--s:var(--blueSoft);--c:var(--blue)}
+.st-partial-up,.st-soon{--s:var(--amberSoft);--c:var(--amber)}
+.st-partial,.st-late{--s:var(--redSoft);--c:var(--red)}
+.st-vacant{--s:var(--greySoft);--c:var(--grey)}
+.st-ok{--s:var(--priSoft);--c:var(--pri)}
+.alert{display:flex;gap:10px;align-items:flex-start;background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--sh);border-right:4px solid var(--c)}
+.alert .ic{font-size:18px}.alert small{color:var(--muted)}
+.btn{border:0;border-radius:12px;padding:9px 14px;font-weight:600;cursor:pointer;background:var(--pri);color:#fff;display:inline-flex;gap:6px;align-items:center;text-decoration:none;font-size:14px}
+.btn.sec2{background:var(--priSoft);color:var(--pri)}
+.btn.ghost{background:#f1efe8;color:var(--ink)}
+.btn.warn{background:var(--redSoft);color:var(--red)}
+.btn.wa{background:#e3f6e8;color:#128c4a}
+.btn.sm{padding:6px 10px;font-size:13px;border-radius:10px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-weight:600;word-break:break-word}
+.uhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.ubadge{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-weight:700;font-size:20px;background:var(--priSoft);color:var(--pri);flex:0 0 auto}
+.muted{color:var(--muted)}.small{font-size:13px}
+.divider{height:1px;background:var(--line);margin:12px 0}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+select,input,textarea{border:1.5px solid var(--line);border-radius:12px;padding:9px 11px;background:#fff;color:var(--ink);width:100%;outline:none}
+select:focus,input:focus,textarea:focus{border-color:var(--pri2)}
+.filters select{width:auto}
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:500}
+.form .full{grid-column:1/-1}
+.fsec{grid-column:1/-1;font-weight:700;color:var(--pri);margin-top:8px;font-size:15px}
+.inst{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.inst .amt{font-weight:700;font-size:16px;text-align:left}
+.bar{height:8px;border-radius:9px;background:#efece4;overflow:hidden;margin-top:6px}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--pri2),var(--pri))}
+.modal{position:fixed;inset:0;background:rgba(20,30,28,.45);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.modal.hidden{display:none}
+.sheet{background:var(--bg);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-radius:24px 24px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom))}
+@media(min-width:760px){.modal{align-items:center}.sheet{border-radius:24px}}
+.sheet h3{margin:0 0 12px;font-size:18px;display:flex;justify-content:space-between;align-items:center}
+.x{border:0;background:#ece8de;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer}
+#toast{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(120px);background:#1f2d2b;color:#fff;padding:11px 18px;border-radius:14px;z-index:80;transition:.25s;font-size:14px;max-width:90vw}
+#toast.on{transform:translateX(-50%) translateY(0)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+th{color:var(--muted);font-weight:600;background:#faf8f3;position:sticky;top:0}
+.tbl{overflow-x:auto;border-radius:14px;border:1px solid var(--line);background:#fff}
+tfoot td{font-weight:700;background:#faf8f3}
+.bars{display:flex;flex-direction:column;gap:8px}
+.brow{display:grid;grid-template-columns:62px 1fr;gap:8px;align-items:center;font-size:12.5px}
+.btrack{display:flex;flex-direction:column;gap:3px}
+.b1,.b2{height:10px;border-radius:6px;min-width:2px}
+.b1{background:#cfe9e3}.b2{background:linear-gradient(90deg,var(--pri2),var(--pri))}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted);margin:6px 0 10px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:4px;vertical-align:middle;margin-left:4px}
+.ecard{border-radius:22px;overflow:hidden;background:#fff;box-shadow:var(--sh)}
+.ecard .h{background:linear-gradient(120deg,#0f766e,#14b8a6);color:#fff;padding:16px}
+.ecard .h b{font-size:18px;display:block}.ecard .h span{opacity:.9;font-size:13px}
+.ecard .rows{padding:10px 14px}
+.ecard .r{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line)}
+.ecard .r:last-child{border:0}
+.ecard .r span{color:var(--muted);font-size:13px}.ecard .r b{direction:ltr;font-size:15px}
+.ecard .r b.ar{direction:rtl}
+.empty{text-align:center;color:var(--muted);padding:26px 10px}
+.pv{border:1.5px dashed var(--pri2);border-radius:14px;padding:12px;margin-bottom:10px;background:#fbfffe}
+.pv .raw{font-size:12px;color:var(--muted);background:#f4f2ec;border-radius:10px;padding:8px;margin-bottom:8px;white-space:pre-wrap;max-height:90px;overflow:auto}
+.tips li{margin-bottom:8px}
+.seg{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg button{flex:0 0 auto;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:8px 12px;cursor:pointer;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.imgprev{width:100%;border-radius:16px;box-shadow:var(--sh);display:block}
+.banner{background:var(--amberSoft);color:#8a5a12;border-radius:14px;padding:12px 14px;margin-bottom:12px;font-size:14px}
+.num{direction:ltr;unicode-bidi:embed}
+#login{position:fixed;inset:0;z-index:90;background:linear-gradient(140deg,#0f766e,#14a38f 55%,#e9dcc0);display:flex;align-items:center;justify-content:center;padding:20px}
+#login.hidden{display:none}
+.lbox{background:#fff;border-radius:26px;padding:28px 22px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.18);text-align:center}
+.lbox .logo{margin:0 auto 10px;background:var(--priSoft);width:64px;height:64px;font-size:34px}
+.lbox h2{margin:4px 0 2px;font-size:20px}.lbox p{margin:0 0 18px;color:var(--muted);font-size:13px}
+.lbox input{margin-bottom:10px;text-align:right}
+.lbox .btn{width:100%;justify-content:center;padding:12px;font-size:15px}
+.lerr{color:var(--red);font-size:13px;min-height:18px;margin-bottom:6px}
+@media print{.top,nav,.filters,.seg,.btns,#toast,.banner,.noprint{display:none!important}body{background:#fff}main{padding:0}.card,.kpi,.tbl{box-shadow:none;border:1px solid #ddd}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="row">
+    <div class="brand"><div class="logo">🏢</div><div><h1 id="bName">عمارة طيبة</h1><p id="bSub">الدمام، حي طيبة · 6 شقق</p></div></div>
+    <div class="sync" id="sync">⏳ جاري التحميل</div>
+  </div>
+</header>
+<nav id="tabs"><div class="tabbar" id="tabbar"></div></nav>
+<main id="main"><div class="empty">جاري تحميل البيانات...</div></main>
+<div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()"><div class="sheet" id="sheet"></div></div>
+<div id="toast"></div>
+<div id="login"><div class="lbox"><div class="logo">🏢</div><h2>إدارة الإيجارات</h2><p>سجّل دخولك بإيميلك وكلمة المرور</p>
+<form id="lform"><input id="lemail" type="email" autocomplete="username" placeholder="الإيميل" dir="ltr" required>
+<input id="lpass" type="password" autocomplete="current-password" placeholder="كلمة المرور" dir="ltr" required>
+<div class="lerr" id="lerr"></div><button class="btn" type="submit" id="lbtn">دخول</button></form>
+<p style="margin:14px 0 0"><a href="#" id="lreset" style="color:var(--pri);font-size:13px">نسيت كلمة المرور؟</a></p></div></div>
+
+<script>
+/* ============ ثوابت ============ */
+const LAYOUT={
+  1:{side:'شمال يمين',floor:'الدور الأرضي'},
+  2:{side:'جنوب يسار',floor:'الدور الأرضي'},
+  3:{side:'شمال يمين',floor:'الدور الأول'},
+  4:{side:'جنوب يسار',floor:'الدور الأول'},
+  5:{side:'شمال يمين',floor:'الدور الثاني'},
+  6:{side:'جنوب يسار',floor:'الدور الثاني'}
+};
+const UNITS=[1,2,3,4,5,6];
+const CYCLES={annual:{m:12,l:'سنوي (دفعة واحدة)'},semi:{m:6,l:'نصف سنوي (دفعتين)'},quarter:{m:3,l:'ربع سنوي (4 دفعات)'},monthly:{m:1,l:'شهري (12 دفعة)'}};
+const CYC_SHORT={annual:'سنوي',semi:'نصف سنوي',quarter:'ربع سنوي',monthly:'شهري'};
+const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const STL={paid:'مسدد','upcoming':'قادم','partial-up':'مدفوع جزئياً','partial':'متأخر جزئياً','late':'متأخر'};
+const ETYPE={bill:'فاتورة صادرة',paid:'سداد',due:'إشعار مستحقات',note:'ملاحظة'};
+const EXP_CATS=['صيانة','سباكة','كهرباء وتمديدات','تكييف','دهانات','نظافة','مياه','مصاعد','رسوم حكومية','عمولة سعي','تأمين','أخرى'];
+const PAY_METHODS=['تحويل بنكي','نقداً','منصة إيجار','شيك','أخرى'];
+const TABS=[['home','الرئيسية','🏠'],['units','الشقق','🚪'],['pay','الدفعات','💰'],['elec','الكهرباء','⚡'],['cards','البطاقات','🪪'],['exp','المصروفات','🧾'],['rep','التقارير','📊'],['set','الإعدادات','⚙️']];
+const COLS=['units','payments','elec','expenses','archive','settings'];
+
+/* ============ الحالة ============ */
+const S={units:{},payments:{},elec:{},expenses:{},archive:{},settings:{}};
+let db=null,base=null,fbUser=null,unsubs=[],tab='home';
+let payFilter={unit:'all',status:'open'};
+let pasteDraft='',parsed=[];
+let repType='summary',repYear=new Date().getFullYear(),repUnit=1;
+let expFilter='all';
+
+/* ============ أدوات ============ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r2=n=>Math.round((+n||0)*100)/100;
+const nf=n=>r2(n).toLocaleString('en-US',{maximumFractionDigits:2});
+const money=n=>nf(n)+' ر.س';
+const pd=s=>{if(!s)return null;const[y,m,d]=String(s).split('-').map(Number);return new Date(y,(m||1)-1,d||1)};
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const today=()=>iso(new Date());
+const addMonths=(d,n)=>{const r=new Date(d.getFullYear(),d.getMonth()+n,1);const last=new Date(r.getFullYear(),r.getMonth()+1,0).getDate();r.setDate(Math.min(d.getDate(),last));return r};
+const addDays=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r};
+const fd=s=>{if(!s)return '-';const d=pd(s);return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()};
+const hij=s=>{try{return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn',{day:'numeric',month:'long',year:'numeric'}).format(pd(s))}catch(e){return ''}};
+const dBetween=(a,b)=>Math.round((pd(b)-pd(a))/864e5);
+const perLabel=p=>{if(!p)return '-';const[y,m]=p.split('-');return (MONTHS[+m-1]||'')+' '+y};
+const sum=(a,f=x=>x)=>a.reduce((s,x)=>s+(+f(x)||0),0);
+const clean=o=>{const r={...o};delete r._id;return r};
+const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2600)}
+function waNum(p){p=String(p||'').replace(/\D/g,'');if(p.startsWith('00'))p=p.slice(2);if(p.startsWith('05'))p='966'+p.slice(1);else if(p.startsWith('5')&&p.length===9)p='966'+p;return p}
+function waLink(phone,text){return 'https://wa.me/'+waNum(phone)+'?text='+encodeURIComponent(text)}
+const ST=()=>S.settings.main||{};
+const bName=()=>ST().buildingName||'عمارة طيبة';
+const bAddr=()=>ST().address||'الدمام، حي طيبة';
+
+/* ============ قاعدة البيانات ============ */
+function ref(path){const[c,id]=path.split('/');return base.collection(c).doc(id)}
+async function dbSet(path,data){if(!base){toast('سجّل الدخول أولاً');throw new Error('nodb')}
+  try{await ref(path).set(JSON.parse(JSON.stringify(data)))}catch(e){toast('تعذر الحفظ: '+(e.code||'خطأ'));throw e}}
+async function dbDel(path){if(!base)return;try{await ref(path).delete()}catch(e){toast('تعذر الحذف');throw e}}
+
+let rq=0;function schedule_render(){cancelAnimationFrame(rq);rq=requestAnimationFrame(render)}
+
+const fb=firebase.initializeApp(window.FIREBASE_CONFIG);
+const auth=firebase.auth();const fs=firebase.firestore();
+try{fs.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+const AUTH_ERR={'auth/invalid-credential':'الإيميل أو كلمة المرور غير صحيحة','auth/wrong-password':'كلمة المرور غير صحيحة','auth/user-not-found':'الإيميل غير مسجل','auth/invalid-email':'صيغة الإيميل غير صحيحة','auth/too-many-requests':'محاولات كثيرة، انتظر قليلاً وحاول مرة ثانية','auth/network-request-failed':'تأكد من اتصال الإنترنت'};
+$('#lform').addEventListener('submit',async e=>{e.preventDefault();$('#lerr').textContent='';$('#lbtn').disabled=true;$('#lbtn').textContent='جاري الدخول...';
+  try{await auth.signInWithEmailAndPassword(v('lemail'),$('#lpass').value)}catch(err){$('#lerr').textContent=AUTH_ERR[err.code]||('تعذر الدخول: '+err.code)}
+  $('#lbtn').disabled=false;$('#lbtn').textContent='دخول'});
+$('#lreset').addEventListener('click',async e=>{e.preventDefault();const em=v('lemail');if(!em){$('#lerr').textContent='اكتب إيميلك أولاً';return}
+  try{await auth.sendPasswordResetEmail(em);$('#lerr').style.color='var(--green)';$('#lerr').textContent='أرسلنا رابط تغيير كلمة المرور على إيميلك'}catch(err){$('#lerr').textContent=AUTH_ERR[err.code]||err.code}});
+async function logout(){if(await ask('تسجيل الخروج من هذا الجهاز؟','خروج'))auth.signOut()}
+auth.onAuthStateChanged(u=>{
+  fbUser=u;unsubs.forEach(f=>f());unsubs=[];
+  if(!u){base=null;COLS.forEach(c=>S[c]={});$('#login').classList.remove('hidden');$('#sync').textContent='🔒 غير مسجل';return}
+  $('#login').classList.add('hidden');$('#sync').textContent='⏳ جاري التحميل';
+  base=fs.collection('apps').doc('rentals');
+  const ok=new Set();
+  const timer=setTimeout(()=>{if(ok.size<COLS.length)$('#sync').textContent='⚠️ بدون اتصال، يعرض آخر نسخة'},10000);
+  COLS.forEach(c=>{unsubs.push(base.collection(c).onSnapshot({includeMetadataChanges:true},snap=>{
+      S[c]=Object.fromEntries(snap.docs.map(d=>[d.id,{...d.data(),_id:d.id}]));
+      if(!snap.metadata.fromCache)ok.add(c);
+      if(ok.size===COLS.length){clearTimeout(timer);$('#sync').textContent=snap.metadata.hasPendingWrites?'⏳ جاري الحفظ':'✅ متزامن'}
+      schedule_render();
+    },err=>{clearTimeout(timer);$('#sync').textContent=err.code==='permission-denied'?'⛔ هذا الحساب ليس له صلاحية':'⚠️ خطأ في الاتصال';schedule_render()}))});
+});
+
+/* ============ منطق الشقق والعقود ============ */
+function unit(n){const d=S.units[n]||{};const L=LAYOUT[n];return{no:n,side:d.side||L.side,floor:d.floor||L.floor,tenant:d.tenant||{},contract:d.contract||{},elec:d.elec||{},notes:d.notes||''}}
+const occupied=u=>!!(u.tenant&&u.tenant.name);
+const loc=u=>u.side+' · '+u.floor;
+function cEnd(c){if(!c||!c.start)return '';return c.end||iso(addDays(addMonths(pd(c.start),12),-1))}
+function schedule(c,n){
+  if(!c||!c.start||!c.annualRent||!c.id)return[];
+  const cm=(CYCLES[c.cycle]||CYCLES.annual).m;const start=pd(c.start);const end=pd(cEnd(c));
+  const out=[];let i=0,d=start;
+  while(d<=end&&i<240){const nx=addMonths(start,(i+1)*cm);const pid=c.id+'_'+i;const p=S.payments[pid];const entries=(p&&p.entries)||[];
+    out.push({id:pid,idx:i,unit:n,contractId:c.id,due:iso(d),to:iso(addDays(nx,-1)>end?end:addDays(nx,-1)),amount:r2(c.annualRent*cm/12),paid:r2(sum(entries,e=>e.amount)),entries});
+    i++;d=nx}
+  return out;
+}
+function allContracts(){const out=[];UNITS.forEach(n=>{const u=unit(n);if(u.contract.id&&u.contract.start)out.push({unit:n,tenant:u.tenant,contract:u.contract,active:true})});
+  Object.values(S.archive).forEach(a=>{if(a.contract&&a.contract.id)out.push({unit:a.unit,tenant:a.tenant||{},contract:a.contract,active:false,archId:a._id})});return out}
+function allInst(){return allContracts().flatMap(c=>schedule(c.contract,c.unit).map(i=>({...i,tenant:c.tenant,active:c.active})))}
+function iStatus(i){const t=today();if(i.paid>=i.amount-0.01)return'paid';if(i.due>t)return i.paid>0?'partial-up':'upcoming';return i.paid>0?'partial':'late'}
+const remain=i=>r2(Math.max(0,i.amount-i.paid));
+function allEntries(){return allInst().flatMap(i=>i.entries.map(e=>({...e,unit:i.unit,tenant:i.tenant,inst:i})))}
+function unitState(n){const u=unit(n);if(!occupied(u))return{st:'vacant',label:'شاغرة'};
+  const ins=schedule(u.contract,n);const t=today();
+  const late=ins.filter(i=>['late','partial'].includes(iStatus(i)));
+  const next=ins.find(i=>iStatus(i)!=='paid');
+  if(late.length)return{st:'late',label:'متأخر '+money(sum(late,remain)),next};
+  if(next&&dBetween(t,next.due)<=30)return{st:'soon',label:'يستحق '+fd(next.due),next};
+  if(!u.contract.start)return{st:'soon',label:'أكمل بيانات العقد',next};
+  return{st:'ok',label:next?'القادم '+fd(next.due):'كل الدفعات مسددة',next};
+}
+
+/* ============ منطق الكهرباء ============ */
+function elecRows(n){return Object.values(S.elec).filter(e=>String(e.unit)===String(n))}
+function elecStatus(n){
+  const rows=elecRows(n);
+  const bills=rows.filter(r=>r.type==='bill').map(r=>({...r})).sort((a,b)=>(a.period||'').localeCompare(b.period||'')||(a.date||'').localeCompare(b.date||''));
+  const pays=rows.filter(r=>r.type==='paid').sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  let pool=sum(pays,p=>p.amount);
+  bills.forEach(b=>{const a=+b.amount||0;const take=Math.min(a,pool);pool=r2(pool-take);b._paid=take;b._st=take>=a-0.01?'paid':take>0?'partial':'late'});
+  const outstanding=r2(sum(bills,b=>(+b.amount||0)-b._paid));
+  const dues=rows.filter(r=>r.type==='due').sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const lastDue=dues[dues.length-1];const lastPay=pays[pays.length-1];
+  const dueWarn=lastDue&&(!lastPay||(lastDue.date||'')>(lastPay.date||''))?lastDue:null;
+  return{bills,pays,outstanding,credit:r2(pool),lastBill:bills[bills.length-1],lastPay,lastDue,dueWarn};
+}
+
+/* ============ تحليل رسائل الكهرباء ============ */
+function normDigits(s){return String(s).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/٫/g,'.').replace(/٬/g,',')}
+const PAID_KW=['تم سداد','تم السداد','تم استلام','تم الدفع','تم دفع','سداد مبلغ','شكرا لسداد','شكراً لسداد','شكرا لك على سداد','شكراً لك على سداد','تم تحصيل','تمت عملية السداد','تم سداد فاتورة','paid','payment received','received your payment','payment of','thank you for paying'];
+const DUE_KW=['متأخر','متأخرة','مستحقات','مديونية','متراكم','فصل','إيقاف الخدمة','ايقاف الخدمة','قطع','تجنب','رصيد مستحق','المبلغ المستحق','overdue','disconnect','outstanding','unpaid'];
+const BILL_KW=['صدرت','صدور','فاتورة جديدة','إصدار فاتورة','اصدار فاتورة','فاتورتك','قيمة الفاتورة','مبلغ الفاتورة','bill issued','new bill','your bill','invoice'];
+const MONTH_NAMES=[[/كانون الثاني|يناير|جانفي|\bjan(uary)?\b/i,1],[/شباط|فبراير|فيفري|\bfeb(ruary)?\b/i,2],[/آذار|اذار|مارس|\bmar(ch)?\b/i,3],[/نيسان|أبريل|ابريل|إبريل|\bapr(il)?\b/i,4],[/أيار|ايار|مايو|\bmay\b/i,5],[/حزيران|يونيو|يونيه|\bjune?\b/i,6],[/تموز|يوليو|يوليه|\bjuly?\b/i,7],[/آب|اغسطس|أغسطس|\baug(ust)?\b/i,8],[/أيلول|ايلول|سبتمبر|\bsep(t|tember)?\b/i,9],[/تشرين الأول|تشرين الاول|أكتوبر|اكتوبر|\boct(ober)?\b/i,10],[/تشرين الثاني|نوفمبر|\bnov(ember)?\b/i,11],[/كانون الأول|كانون الاول|ديسمبر|\bdec(ember)?\b/i,12]];
+function splitMsgs(t){const parts=String(t).split(/\n\s*\n+/).map(s=>s.trim()).filter(Boolean);return parts}
+function parseMsg(raw){
+  const t=normDigits(raw);const low=t.toLowerCase();
+  // الشقة
+  let unitNo='',by='';
+  const nums=(t.match(/[A-Za-z]{0,4}\d{4,}/g)||[]).map(s=>s.toUpperCase());
+  const masked=(t.match(/[*xX•]{2,}\s?(\d{3,8})/g)||[]).map(s=>s.replace(/\D/g,''));
+  const F=[['account','رقم الحساب'],['subscription','رقم الاشتراك'],['meter','رقم العداد'],['meterLabel','الرقم على العداد']];
+  outer:for(const n of UNITS){const e=unit(n).elec;for(const[f,l]of F){const v=String(e[f]||'').toUpperCase().trim();if(!v||v.length<4)continue;
+    if(t.toUpperCase().includes(v)||nums.some(x=>x.length>=6&&(x.endsWith(v)||v.endsWith(x)))||masked.some(m=>m.length>=3&&v.endsWith(m))){unitNo=String(n);by=l;break outer}}}
+  // النوع
+  const has=a=>a.some(k=>low.includes(k.toLowerCase()));
+  let type=has(PAID_KW)?'paid':has(DUE_KW)?'due':has(BILL_KW)?'bill':'bill';
+  // المبلغ
+  let amount='';
+  const am=t.match(/(\d[\d,]*(?:\.\d+)?)\s*(?:ريال|ر\.?\s?س|sar\b|sr\b)/i)||t.match(/(?:sar|ريال|ر\.س)\s*:?\s*(\d[\d,]*(?:\.\d+)?)/i)||t.match(/(?:بمبلغ|مبلغ|المبلغ|قيمة|قيمتها|بقيمة|amount)\s*(?:وقدره|قدره|المستحق|الفاتورة)?\s*:?\s*(\d[\d,]*(?:\.\d+)?)/i);
+  if(am){const v=parseFloat(am[1].replace(/,/g,''));if(v>0&&v<200000)amount=r2(v)}
+  // الفترة
+  let period='';const now=new Date();
+  const ym=t.match(/\b(20\d{2})\b/);
+  for(const[re,m]of MONTH_NAMES){if(re.test(t)){let y=ym?+ym[1]:now.getFullYear();if(!ym&&m>now.getMonth()+1)y--;period=y+'-'+String(m).padStart(2,'0');break}}
+  let date=today();
+  const dm=t.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2})\b/)||null;const dm2=t.match(/\b(20\d{2})[\/\-.](\d{1,2})[\/\-.](\d{1,2})\b/);
+  if(dm2)date=dm2[1]+'-'+dm2[2].padStart(2,'0')+'-'+dm2[3].padStart(2,'0');else if(dm)date=dm[3]+'-'+dm[2].padStart(2,'0')+'-'+dm[1].padStart(2,'0');
+  if(!period)period=(type==='bill'?date:today()).slice(0,7);
+  if(type==='paid'&&!amount&&unitNo){const o=elecStatus(unitNo).outstanding;if(o>0)amount=o}
+  return{raw:raw.trim(),unit:unitNo,by,type,amount,period,date};
+}
+
+/* ============ النوافذ ============ */
+function openModal(html){$('#sheet').innerHTML=html;$('#modal').classList.remove('hidden');document.body.style.overflow='hidden'}
+function closeModal(){$('#modal').classList.add('hidden');document.body.style.overflow='';const im=$('#sheet img');if(im&&im.src.startsWith('blob:'))URL.revokeObjectURL(im.src)}
+function ask(msg,okLabel='تأكيد'){return new Promise(res=>{openModal(`<h3>تأكيد<button class="x" onclick="closeModal()">×</button></h3><p>${msg}</p><div class="btns"><button class="btn warn" id="okA">${okLabel}</button><button class="btn ghost" id="noA">إلغاء</button></div>`);$('#okA').onclick=()=>{closeModal();res(true)};$('#noA').onclick=()=>{closeModal();res(false)}})}
+const v=id=>{const e=document.getElementById(id);return e?e.value.trim():''};
+async function copyText(t){try{await navigator.clipboard.writeText(t);toast('تم النسخ ✓')}catch(e){openModal(`<h3>انسخ النص<button class="x" onclick="closeModal()">×</button></h3><textarea rows="10">${esc(t)}</textarea>`)}}
+
+/* ============ التبويبات ============ */
+function renderTabs(){$('#tabbar').innerHTML=TABS.map(([k,l,i])=>`<button class="tab ${tab===k?'on':''}" onclick="go('${k}')">${i} ${l}</button>`).join('')}
+function go(k){tab=k;renderTabs();render();window.scrollTo({top:0,behavior:'smooth'})}
+function render(){
+  $('#bName').textContent=bName();$('#bSub').textContent=bAddr()+' · 6 شقق';
+  const f={home:vHome,units:vUnits,pay:vPay,elec:vElec,cards:vCards,exp:vExp,rep:vRep,set:vSet}[tab];
+  const banner='';
+  $('#main').innerHTML=banner+f();
+  if(tab==='elec'){const ta=$('#pasteBox');if(ta)ta.value=pasteDraft}
+}
+
+/* ---------- الرئيسية ---------- */
+function kpi(i,l,val,c){return`<div class="kpi" style="--c:var(--${c})"><div class="i">${i}</div><div class="l">${l}</div><div class="v">${val}</div></div>`}
+function vHome(){
+  const t=today(),y=t.slice(0,4);const ins=allInst();
+  const occ=UNITS.filter(n=>occupied(unit(n))).length;
+  const collected=sum(allEntries().filter(e=>(e.date||'').startsWith(y)),e=>e.amount);
+  const late=ins.filter(i=>['late','partial'].includes(iStatus(i)));
+  const soon=ins.filter(i=>i.due>t&&dBetween(t,i.due)<=30&&iStatus(i)!=='paid');
+  const expiring=allContracts().filter(c=>c.active&&dBetween(t,cEnd(c.contract))<=60);
+  const elecOut=sum(UNITS,n=>elecStatus(n).outstanding);
+  const potential=sum(UNITS,n=>{const u=unit(n);return occupied(u)?+u.contract.annualRent||0:0});
+  let h=`<section class="kpis">
+   ${kpi('🏠','الشقق المؤجرة',occ+' من 6','pri')}
+   ${kpi('💵','المحصّل في '+y,money(collected),'green')}
+   ${kpi('⏰','متأخرات الإيجار',money(sum(late,remain)),late.length?'red':'green')}
+   ${kpi('📅','مستحق خلال 30 يوم',money(sum(soon,remain)),'amber')}
+   ${kpi('⚡','كهرباء غير مسددة',money(elecOut),elecOut>0?'red':'green')}
+   ${kpi('📈','الدخل السنوي المتوقع',money(potential),'blue')}
+  </section>`;
+  h+=`<h2 class="sec">🏢 مخطط العمارة</h2><div class="building">`;
+  [[5,6,'الدور الثاني'],[3,4,'الدور الأول'],[1,2,'الدور الأرضي']].forEach(([a,b,f])=>{h+=`<div class="floorlbl">${f}</div>`+[a,b].map(mini).join('')});
+  h+=`</div>`;
+  // تنبيهات
+  const al=[];
+  late.forEach(i=>al.push(['late','⏰',`شقة ${i.unit}: قسط متأخر ${money(remain(i))}`,`${esc(i.tenant.name||'')} · كان مستحقاً ${fd(i.due)} (منذ ${dBetween(i.due,t)} يوم)`,`payModal('${i.id}')`]));
+  soon.forEach(i=>al.push(['soon','📅',`شقة ${i.unit}: قسط قادم ${money(remain(i))}`,`${esc(i.tenant.name||'')} · يستحق ${fd(i.due)} (بعد ${dBetween(t,i.due)} يوم)`,`payModal('${i.id}')`]));
+  expiring.forEach(c=>{const d=dBetween(t,cEnd(c.contract));al.push([d<0?'late':'soon','📄',`شقة ${c.unit}: العقد ${d<0?'منتهٍ منذ '+(-d)+' يوم':'ينتهي بعد '+d+' يوم'}`,`${esc(c.tenant.name||'')} · نهاية العقد ${fd(cEnd(c.contract))}، رتّب التجديد أو الإخلاء`,`unitModal(${c.unit})`])});
+  UNITS.forEach(n=>{const e=elecStatus(n);if(e.outstanding>0)al.push(['late','⚡',`شقة ${n}: كهرباء غير مسددة ${money(e.outstanding)}`,`${e.bills.filter(b=>b._st!=='paid').length} فاتورة مفتوحة`,`go('elec')`]);else if(e.dueWarn)al.push(['soon','⚡',`شقة ${n}: إشعار مستحقات من الكهرباء ${e.dueWarn.amount?money(e.dueWarn.amount):''}`,`بتاريخ ${fd(e.dueWarn.date)}`,`go('elec')`])});
+  UNITS.forEach(n=>{const u=unit(n);if(!occupied(u))al.push(['vacant','🚪',`شقة ${n} شاغرة`,loc(u),`unitModal(${n})`]);else{
+    if(!u.contract.start||!u.contract.annualRent)al.push(['soon','📝',`شقة ${n}: أكمل بيانات العقد`,'تاريخ البداية وقيمة الإيجار ونظام الدفع',`unitModal(${n})`]);
+    else if(!u.contract.ejarNo)al.push(['vacant','🔖',`شقة ${n}: لم يُسجل رقم عقد إيجار`,'التوثيق في منصة إيجار يحمي حقك',`unitModal(${n})`]);}
+    if(!u.elec.account&&!u.elec.subscription)al.push(['vacant','🔌',`شقة ${n}: معلومات الكهرباء ناقصة`,'أضف رقم الحساب والاشتراك لتعمل قراءة الرسائل',`unitModal(${n})`])});
+  h+=`<h2 class="sec">🔔 التنبيهات <span class="chip st-late">${al.filter(a=>a[0]==='late').length}</span></h2>`;
+  h+=al.length?al.map(a=>`<div class="alert st-${a[0]}" onclick="${a[4]}" style="cursor:pointer"><div class="ic">${a[1]}</div><div><b>${a[2]}</b><br><small>${a[3]}</small></div></div>`).join(''):`<div class="card empty">كل شيء تمام 👌 لا توجد تنبيهات</div>`;
+  return h;
+}
+function mini(n){const u=unit(n);const s=unitState(n);return`<div class="mu st-${s.st}" onclick="unitModal(${n})"><div class="n"><span>شقة ${n}</span><span class="small muted">${u.side}</span></div><div class="t">${occupied(u)?'👤 '+esc(u.tenant.name):'شاغرة'}</div><div class="s">${s.label}</div></div>`}
+
+/* ---------- الشقق ---------- */
+function vUnits(){
+  return `<div class="grid g2">`+UNITS.map(n=>{const u=unit(n);const s=unitState(n);const c=u.contract;const ins=schedule(c,n);
+    const paidN=ins.filter(i=>iStatus(i)==='paid').length;
+    return`<div class="card"><div class="uhead"><div style="display:flex;gap:10px;align-items:center"><div class="ubadge">${n}</div><div><b>شقة رقم ${n}</b><div class="small muted">${loc(u)}</div></div></div><span class="chip st-${s.st}">${s.label}</span></div>
+    ${occupied(u)?`<dl class="kv"><dt>المستأجر</dt><dd>${esc(u.tenant.name)}</dd><dt>الجوال</dt><dd class="num">${esc(u.tenant.phone||'-')}</dd><dt>الهوية</dt><dd class="num">${esc(u.tenant.idNo||'-')}</dd>
+      <dt>الإيجار السنوي</dt><dd>${c.annualRent?money(c.annualRent):'-'}</dd><dt>نظام الدفع</dt><dd>${CYC_SHORT[c.cycle]||'-'}${c.annualRent?' · '+money(c.annualRent*(CYCLES[c.cycle]||CYCLES.annual).m/12)+' للدفعة':''}</dd>
+      <dt>مدة العقد</dt><dd>${c.start?fd(c.start)+' إلى '+fd(cEnd(c)):'-'}</dd><dt>عقد إيجار</dt><dd>${esc(c.ejarNo||'غير مسجل')}</dd></dl>
+      ${ins.length?`<div class="small muted" style="margin-top:8px">الدفعات المسددة ${paidN} من ${ins.length}</div><div class="bar"><i style="width:${ins.length?paidN/ins.length*100:0}%"></i></div>`:''}`
+      :`<p class="muted">الشقة شاغرة حالياً. اضغط تعديل لإضافة مستأجر جديد.</p>`}
+    <div class="btns"><button class="btn sm" onclick="unitModal(${n})">✏️ تعديل</button>
+    ${occupied(u)?`<button class="btn sm sec2" onclick="payFilter={unit:'${n}',status:'all'};go('pay')">💰 الدفعات</button>
+    ${u.tenant.phone?`<a class="btn sm wa" href="${waLink(u.tenant.phone,'السلام عليكم '+u.tenant.name+'، ')}" target="_blank" rel="noopener">واتساب</a>`:''}
+    ${c.id?`<button class="btn sm ghost" onclick="renewModal(${n})">🔁 تجديد</button>`:''}
+    <button class="btn sm warn" onclick="endModal(${n})">إخلاء / إنهاء</button>`:''}</div></div>`}).join('')+`</div>`;
+}
+function unitModal(n){
+  const u=unit(n),t=u.tenant,c=u.contract,e=u.elec;
+  const opt=(o,sel)=>Object.entries(o).map(([k,l])=>`<option value="${k}" ${k===sel?'selected':''}>${l}</option>`).join('');
+  openModal(`<h3>شقة رقم ${n} · ${loc(u)}<button class="x" onclick="closeModal()">×</button></h3>
+  <div class="form">
+   <div class="fsec">👤 بيانات المستأجر</div>
+   <label class="full">الاسم الكامل<input id="f_name" value="${esc(t.name)}"></label>
+   <label>رقم الهوية / الإقامة<input id="f_idNo" inputmode="numeric" value="${esc(t.idNo)}"></label>
+   <label>نوع الهوية<select id="f_idType">${['هوية وطنية','إقامة','جواز سفر'].map(x=>`<option ${x===t.idType?'selected':''}>${x}</option>`).join('')}</select></label>
+   <label>تاريخ الميلاد<input id="f_dob" placeholder="مثال 10/1/1411" value="${esc(t.dob)}"></label>
+   <label>رقم الجوال<input id="f_phone" inputmode="tel" value="${esc(t.phone)}"></label>
+   <label>جوال إضافي / للطوارئ<input id="f_phone2" inputmode="tel" value="${esc(t.phone2)}"></label>
+   <label>جهة العمل<input id="f_work" value="${esc(t.work)}"></label>
+   <label>عدد أفراد الأسرة<input id="f_family" inputmode="numeric" value="${esc(t.family)}"></label>
+   <label>انتهاء الهوية / الإقامة<input id="f_idExp" placeholder="اختياري" value="${esc(t.idExp)}"></label>
+   <div class="fsec">📄 العقد</div>
+   <label>تاريخ بداية العقد<input type="date" id="f_start" value="${esc(c.start)}" oninput="calcInst()"></label>
+   <label>تاريخ نهاية العقد<input type="date" id="f_end" value="${esc(c.end)}" placeholder="افتراضياً سنة"></label>
+   <label>قيمة الإيجار السنوي (ر.س)<input id="f_rent" inputmode="decimal" value="${esc(c.annualRent)}" oninput="calcInst()"></label>
+   <label>نظام الدفع<select id="f_cycle" onchange="calcInst()">${opt(CYCLES?Object.fromEntries(Object.entries(CYCLES).map(([k,x])=>[k,x.l])):{},c.cycle||'annual')}</select></label>
+   <div class="full small" id="instHint" style="color:var(--pri);font-weight:600"></div>
+   <label>مبلغ التأمين (ر.س)<input id="f_deposit" inputmode="decimal" value="${esc(c.deposit)}"></label>
+   <label>رقم عقد إيجار<input id="f_ejar" value="${esc(c.ejarNo)}"></label>
+   <label class="full">ملاحظات العقد<textarea id="f_cnotes" rows="2">${esc(c.notes)}</textarea></label>
+   <div class="fsec">⚡ معلومات الكهرباء</div>
+   <label>رقم الاشتراك<input id="f_sub" inputmode="numeric" value="${esc(e.subscription)}"></label>
+   <label>رقم الحساب<input id="f_acc" inputmode="numeric" value="${esc(e.account)}"></label>
+   <label>رقم العداد<input id="f_meter" value="${esc(e.meter)}"></label>
+   <label>الرقم المكتوب على العداد<input id="f_mlabel" value="${esc(e.meterLabel)}"></label>
+   <label>قراءة العداد عند الاستلام<input id="f_mread" inputmode="numeric" value="${esc(e.moveInReading)}"></label>
+   <label class="full">ملاحظات عامة<textarea id="f_notes" rows="2">${esc(u.notes)}</textarea></label>
+  </div>
+  <div class="btns"><button class="btn" onclick="saveUnit(${n})">💾 حفظ</button><button class="btn ghost" onclick="closeModal()">إلغاء</button></div>`);
+  calcInst();
+}
+function calcInst(){const h=$('#instHint');if(!h)return;const r=+v('f_rent');const cy=CYCLES[v('f_cycle')]||CYCLES.annual;h.textContent=r?`قيمة كل دفعة: ${money(r*cy.m/12)} · عدد الدفعات في السنة: ${12/cy.m}`:''}
+async function saveUnit(n){
+  const u=unit(n);const c={...u.contract};
+  const tenant={name:v('f_name'),idNo:v('f_idNo'),idType:v('f_idType'),dob:v('f_dob'),phone:v('f_phone'),phone2:v('f_phone2'),work:v('f_work'),family:v('f_family'),idExp:v('f_idExp')};
+  Object.assign(c,{start:v('f_start'),end:v('f_end'),annualRent:+v('f_rent').replace(/,/g,'')||0,cycle:v('f_cycle')||'annual',deposit:+v('f_deposit')||0,ejarNo:v('f_ejar'),notes:v('f_cnotes')});
+  if(c.start&&!c.id)c.id=uid('c');
+  const elec={subscription:v('f_sub'),account:v('f_acc'),meter:v('f_meter'),meterLabel:v('f_mlabel'),moveInReading:v('f_mread')};
+  try{await dbSet('units/'+n,{no:n,side:u.side,floor:u.floor,tenant,contract:c,elec,notes:v('f_notes'),updatedAt:Date.now()});closeModal();toast('تم الحفظ ✓')}catch(e){}
+}
+function endModal(n){const u=unit(n);openModal(`<h3>إنهاء عقد شقة ${n}<button class="x" onclick="closeModal()">×</button></h3>
+  <p>سيُنقل عقد <b>${esc(u.tenant.name)}</b> إلى الأرشيف مع كل دفعاته، وتصبح الشقة شاغرة. معلومات الكهرباء تبقى مع الشقة.</p>
+  <div class="form"><label>تاريخ الإخلاء<input type="date" id="f_endd" value="${today()}"></label><label>قراءة العداد عند الإخلاء<input id="f_outread"></label>
+  <label>التأمين المسترد (ر.س)<input id="f_depret" value="${esc(u.contract.deposit||'')}"></label><label class="full">ملاحظات الإخلاء<textarea id="f_endnote" rows="2"></textarea></label></div>
+  <div class="btns"><button class="btn warn" onclick="endContract(${n})">تأكيد الإخلاء</button><button class="btn ghost" onclick="closeModal()">إلغاء</button></div>`)}
+async function endContract(n,keepTenant){
+  const u=unit(n);const c={...u.contract};const ed=keepTenant?cEnd(c):(v('f_endd')||today());
+  if(c.id){c.end=ed<c.start?c.start:ed;
+    try{await dbSet('archive/'+c.id,{unit:n,tenant:u.tenant,contract:c,endedAt:ed,outReading:keepTenant?'':v('f_outread'),depositReturned:keepTenant?'':v('f_depret'),endNote:keepTenant?'تجديد':v('f_endnote')})}catch(e){return}}
+  const tenant=keepTenant?u.tenant:{};
+  let nc={};if(keepTenant){const ns=iso(addDays(pd(cEnd(u.contract)),1));nc={id:uid('c'),start:ns,end:'',annualRent:c.annualRent,cycle:c.cycle,deposit:c.deposit,ejarNo:'',notes:''}}
+  try{await dbSet('units/'+n,{no:n,side:u.side,floor:u.floor,tenant,contract:nc,elec:u.elec,notes:u.notes,updatedAt:Date.now()});closeModal();toast(keepTenant?'تم إنشاء عقد التجديد':'تم إخلاء الشقة وأرشفة العقد');if(keepTenant)unitModal(n)}catch(e){}
+}
+async function renewModal(n){const u=unit(n);if(!u.contract.start){toast('أكمل بيانات العقد أولاً');return}
+  if(await ask(`سيُؤرشف العقد الحالي (ينتهي ${fd(cEnd(u.contract))}) ويُنشأ عقد جديد لنفس المستأجر يبدأ ${fd(iso(addDays(pd(cEnd(u.contract)),1)))} بنفس القيمة، وتقدر تعدلها بعدها.`,'تجديد'))endContract(n,true)}
+
+/* ---------- الدفعات ---------- */
+function vPay(){
+  const t=today();let ins=allInst();
+  if(payFilter.unit!=='all')ins=ins.filter(i=>String(i.unit)===payFilter.unit);
+  const st=payFilter.status;
+  if(st==='open')ins=ins.filter(i=>iStatus(i)!=='paid'&&i.active);
+  else if(st==='late')ins=ins.filter(i=>['late','partial'].includes(iStatus(i)));
+  else if(st==='paid')ins=ins.filter(i=>iStatus(i)==='paid');
+  ins.sort((a,b)=>st==='paid'?b.due.localeCompare(a.due):a.due.localeCompare(b.due));
+  let h=`<div class="filters"><select onchange="payFilter.unit=this.value;render()"><option value="all">كل الشقق</option>${UNITS.map(n=>`<option value="${n}" ${payFilter.unit==n?'selected':''}>شقة ${n}</option>`).join('')}</select>
+   <select onchange="payFilter.status=this.value;render()">${[['open','المفتوحة'],['late','المتأخرة'],['paid','المسددة'],['all','الكل (مع الأرشيف)']].map(([k,l])=>`<option value="${k}" ${st===k?'selected':''}>${l}</option>`).join('')}</select></div>`;
+  h+=`<div class="kpis" style="margin-bottom:12px">${kpi('📋','عدد الأقساط',ins.length,'pri')}${kpi('💵','الإجمالي',money(sum(ins,i=>i.amount)),'blue')}${kpi('✅','المدفوع',money(sum(ins,i=>i.paid)),'green')}${kpi('⏳','المتبقي',money(sum(ins,remain)),'red')}</div>`;
+  if(!ins.length)return h+`<div class="card empty">لا توجد أقساط هنا. الأقساط تُنشأ تلقائياً من بيانات العقد في تبويب الشقق.</div>`;
+  h+=ins.map(i=>{const s=iStatus(i);const late=s==='late'||s==='partial';return`<div class="card"><div class="inst"><div style="display:flex;gap:10px"><div class="ubadge" style="width:38px;height:38px;font-size:16px">${i.unit}</div><div>
+    <b>${esc(i.tenant.name||'-')}</b> <span class="chip st-${s}">${STL[s]}${!i.active?' · أرشيف':''}</span>
+    <div class="small muted">الفترة ${fd(i.due)} إلى ${fd(i.to)}</div>
+    <div class="small">الاستحقاق: <b>${fd(i.due)}</b> <span class="muted">(${hij(i.due)})</span>${late?` · <span style="color:var(--red)">متأخر ${dBetween(i.due,t)} يوم</span>`:s==='upcoming'?` · <span class="muted">بعد ${dBetween(t,i.due)} يوم</span>`:''}</div></div></div>
+    <div class="amt">${money(i.amount)}${i.paid>0&&s!=='paid'?`<div class="small" style="color:var(--green)">مدفوع ${money(i.paid)}</div>`:''}</div></div>
+    ${i.amount?`<div class="bar"><i style="width:${Math.min(100,i.paid/i.amount*100)}%"></i></div>`:''}
+    <div class="btns"><button class="btn sm" onclick="payModal('${i.id}')">${s==='paid'?'📄 التفاصيل':'➕ تسجيل دفعة'}</button>
+    ${i.entries.length?`<button class="btn sm sec2" onclick="receipt('${i.id}',${i.entries.length-1})">🧾 سند قبض</button>`:''}
+    ${s!=='paid'&&i.tenant.phone&&i.active?`<a class="btn sm wa" target="_blank" rel="noopener" href="${waLink(i.tenant.phone,reminderText(i))}">💬 تذكير واتساب</a>`:''}</div></div>`}).join('');
+  return h;
+}
+function reminderText(i){const late=['late','partial'].includes(iStatus(i));
+  return `السلام عليكم ورحمة الله ${i.tenant.name||''}\n${late?'نود تذكيركم بأن':'نذكركم بقرب موعد'} سداد إيجار شقة رقم ${i.unit} في ${bName()}، بمبلغ ${money(remain(i))} ${late?'والمستحق منذ':'المستحق بتاريخ'} ${fd(i.due)} عن الفترة من ${fd(i.due)} إلى ${fd(i.to)}.\nشاكرين تعاونكم.`}
+function payModal(pid){
+  const i=allInst().find(x=>x.id===pid);if(!i)return;
+  openModal(`<h3>قسط شقة ${i.unit}<button class="x" onclick="closeModal()">×</button></h3>
+  <div class="card"><dl class="kv"><dt>المستأجر</dt><dd>${esc(i.tenant.name)}</dd><dt>الفترة</dt><dd>${fd(i.due)} إلى ${fd(i.to)}</dd><dt>الاستحقاق</dt><dd>${fd(i.due)} · ${hij(i.due)}</dd><dt>القيمة</dt><dd>${money(i.amount)}</dd><dt>المدفوع</dt><dd style="color:var(--green)">${money(i.paid)}</dd><dt>المتبقي</dt><dd style="color:var(--red)">${money(remain(i))}</dd></dl></div>
+  ${i.entries.length?`<h3 style="font-size:15px">سجل الدفعات</h3>`+i.entries.map((e,k)=>`<div class="card" style="padding:12px"><div class="inst"><div><b>${money(e.amount)}</b> <span class="muted small">${esc(e.method||'')}</span><div class="small muted">${fd(e.date)} · سند رقم ${esc(e.rno||'-')}${e.note?' · '+esc(e.note):''}</div></div>
+    <div style="display:flex;gap:6px"><button class="btn sm sec2" onclick="receipt('${pid}',${k})">🧾</button><button class="btn sm warn" onclick="delEntry('${pid}',${k})">🗑</button></div></div></div>`).join(''):''}
+  ${remain(i)>0?`<h3 style="font-size:15px;margin-top:14px">تسجيل دفعة جديدة</h3><div class="form">
+   <label>المبلغ<input id="p_amt" inputmode="decimal" value="${remain(i)}"></label>
+   <label>تاريخ الاستلام<input type="date" id="p_date" value="${today()}"></label>
+   <label>طريقة الدفع<select id="p_method">${PAY_METHODS.map(m=>`<option>${m}</option>`).join('')}</select></label>
+   <label>ملاحظة<input id="p_note" placeholder="اختياري"></label></div>
+   <div class="btns"><button class="btn" onclick="addEntry('${pid}')">✅ حفظ الدفعة</button></div>`:`<p class="chip st-paid">القسط مسدد بالكامل ✓</p>`}`);
+}
+async function addEntry(pid){
+  const i=allInst().find(x=>x.id===pid);const amt=r2(+v('p_amt').replace(/,/g,''));if(!amt){toast('اكتب المبلغ');return}
+  const y=(v('p_date')||today()).slice(0,4);const cnt=allEntries().filter(e=>(e.rno||'').startsWith(y)).length;
+  const entries=[...i.entries.map(e=>({...e})),{amount:amt,date:v('p_date')||today(),method:v('p_method'),note:v('p_note'),rno:y+'-'+String(cnt+1).padStart(4,'0'),at:Date.now()}];
+  try{await dbSet('payments/'+pid,{unit:i.unit,contractId:i.contractId,idx:i.idx,entries});toast('تم تسجيل الدفعة ✓');payModalAfter(pid,entries.length-1)}catch(e){}
+}
+function payModalAfter(pid,k){openModal(`<h3>تم تسجيل الدفعة ✅<button class="x" onclick="closeModal()">×</button></h3><p>تبي ترسل سند القبض للمستأجر؟</p><div class="btns"><button class="btn" onclick="receipt('${pid}',${k})">🧾 إنشاء سند القبض</button><button class="btn ghost" onclick="closeModal()">لاحقاً</button></div>`)}
+async function delEntry(pid,k){const i=allInst().find(x=>x.id===pid);if(!await ask('حذف هذه الدفعة من السجل؟','حذف'))return;
+  const entries=i.entries.filter((_,j)=>j!==k).map(e=>({...e}));try{if(entries.length)await dbSet('payments/'+pid,{unit:i.unit,contractId:i.contractId,idx:i.idx,entries});else await dbDel('payments/'+pid);toast('تم الحذف')}catch(e){}}
+
+/* ---------- الكهرباء ---------- */
+function vElec(){
+  let h=`<div class="card"><b>📩 الصق رسائل شركة الكهرباء هنا</b><p class="small muted" style="margin:4px 0 8px">تقدر تلصق أكثر من رسالة، افصل بينها بسطر فاضي. البرنامج يتعرف على الشقة من رقم الحساب أو الاشتراك أو العداد، ويحدد هل هي فاتورة أو سداد أو مستحقات، ويستخرج المبلغ والشهر.</p>
+   <textarea id="pasteBox" rows="5" placeholder="الصق الرسالة هنا..." oninput="pasteDraft=this.value"></textarea>
+   <div class="btns"><button class="btn" onclick="doParse()">🔍 تحليل الرسائل</button><button class="btn ghost" onclick="elecManual()">➕ إدخال يدوي</button></div></div>`;
+  if(parsed.length){h+=`<h2 class="sec">👀 راجع النتائج قبل الحفظ</h2>`+parsed.map((p,k)=>`<div class="pv"><div class="raw">${esc(p.raw)}</div>
+    ${p.unit?`<div class="small" style="color:var(--green);margin-bottom:6px">✓ تم التعرف على الشقة ${p.unit} من ${p.by}</div>`:`<div class="small" style="color:var(--red);margin-bottom:6px">⚠️ لم يُتعرف على الشقة، اخترها يدوياً</div>`}
+    ${p.dup?`<div class="small" style="color:var(--amber);margin-bottom:6px">⚠️ هذه الرسالة محفوظة من قبل</div>`:''}
+    <div class="form"><label>الشقة<select onchange="parsed[${k}].unit=this.value"><option value="">اختر</option>${UNITS.map(n=>`<option value="${n}" ${p.unit==n?'selected':''}>شقة ${n}</option>`).join('')}</select></label>
+    <label>النوع<select onchange="parsed[${k}].type=this.value">${Object.entries(ETYPE).map(([a,b])=>`<option value="${a}" ${p.type===a?'selected':''}>${b}</option>`).join('')}</select></label>
+    <label>المبلغ<input inputmode="decimal" value="${esc(p.amount)}" oninput="parsed[${k}].amount=this.value"></label>
+    <label>عن شهر<input type="month" value="${esc(p.period)}" oninput="parsed[${k}].period=this.value"></label>
+    <label>تاريخ الرسالة<input type="date" value="${esc(p.date)}" oninput="parsed[${k}].date=this.value"></label></div>
+    <div class="btns"><button class="btn sm ghost" onclick="parsed.splice(${k},1);render()">استبعاد</button></div></div>`).join('')+
+    `<div class="btns" style="margin-bottom:10px"><button class="btn" onclick="saveParsed()">💾 حفظ الكل (${parsed.length})</button><button class="btn ghost" onclick="parsed=[];render()">إلغاء</button></div>`}
+  h+=`<h2 class="sec">⚡ حالة الكهرباء لكل شقة</h2><div class="grid g2">`+UNITS.map(n=>{const u=unit(n);const e=elecStatus(n);
+    const st=e.outstanding>0?'late':e.dueWarn?'soon':e.bills.length?'paid':'vacant';
+    const lbl=e.outstanding>0?'غير مسدد '+money(e.outstanding):e.dueWarn?'يوجد إشعار مستحقات':e.bills.length?'مسدد بالكامل':'لا توجد فواتير';
+    const recent=e.bills.slice(-6).reverse();
+    return`<div class="card"><div class="uhead"><div style="display:flex;gap:10px;align-items:center"><div class="ubadge">${n}</div><div><b>${occupied(u)?esc(u.tenant.name):'شاغرة'}</b><div class="small muted num">حساب ${esc(u.elec.account||'-')}</div></div></div><span class="chip st-${st}">${lbl}</span></div>
+    <dl class="kv small"><dt>آخر فاتورة</dt><dd>${e.lastBill?perLabel(e.lastBill.period)+' · '+money(e.lastBill.amount):'-'}</dd><dt>آخر سداد</dt><dd>${e.lastPay?fd(e.lastPay.date)+' · '+money(e.lastPay.amount):'-'}</dd>${e.credit>0?`<dt>رصيد زائد</dt><dd style="color:var(--green)">${money(e.credit)}</dd>`:''}${e.lastDue?`<dt>آخر إشعار مستحقات</dt><dd>${fd(e.lastDue.date)}${e.lastDue.amount?' · '+money(e.lastDue.amount):''}</dd>`:''}</dl>
+    ${recent.length?`<div class="tbl" style="margin-top:10px"><table><tr><th>الشهر</th><th>الفاتورة</th><th>الحالة</th></tr>${recent.map(b=>`<tr><td>${perLabel(b.period)}</td><td>${money(b.amount)}</td><td><span class="chip st-${b._st}">${b._st==='paid'?'مسددة':b._st==='partial'?'جزئي':'غير مسددة'}</span></td></tr>`).join('')}</table></div>`:''}
+    <div class="btns"><button class="btn sm sec2" onclick="elecLog(${n})">📜 السجل الكامل</button>${e.outstanding>0&&u.tenant.phone?`<a class="btn sm wa" target="_blank" rel="noopener" href="${waLink(u.tenant.phone,`السلام عليكم ${u.tenant.name}\nنفيدكم بوجود فواتير كهرباء غير مسددة على شقة رقم ${n} بإجمالي ${money(e.outstanding)} (رقم الحساب ${u.elec.account||''}). نأمل سرعة السداد لتجنب فصل الخدمة.\nشاكرين تعاونكم.`)}">💬 تذكير</a>`:''}</div></div>`}).join('')+`</div>`;
+  return h;
+}
+function doParse(){const t=pasteDraft.trim();if(!t){toast('الصق رسالة أولاً');return}
+  const raws=new Set(Object.values(S.elec).map(e=>(e.raw||'').trim()));
+  parsed=splitMsgs(t).map(parseMsg).map(p=>({...p,dup:raws.has(p.raw)}));render();
+  toast(`تم تحليل ${parsed.length} رسالة`)}
+async function saveParsed(){
+  const miss=parsed.filter(p=>!p.unit);if(miss.length){toast('حدد الشقة لكل رسالة');return}
+  let k=0;for(const p of parsed){if(p.type!=='note'&&!(+p.amount>0)&&p.type!=='due'){toast('اكتب المبلغ للرسالة رقم '+(k+1));return}k++}
+  try{for(const p of parsed){await dbSet('elec/'+uid('e'),{unit:+p.unit,type:p.type,amount:r2(p.amount),period:p.period,date:p.date,raw:p.raw,at:Date.now()})}
+    toast('تم الحفظ وتحديث حالة الكهرباء ✓');parsed=[];pasteDraft='';render()}catch(e){}
+}
+function elecManual(){openModal(`<h3>إدخال كهرباء يدوي<button class="x" onclick="closeModal()">×</button></h3><div class="form">
+  <label>الشقة<select id="m_unit">${UNITS.map(n=>`<option value="${n}">شقة ${n}</option>`).join('')}</select></label>
+  <label>النوع<select id="m_type">${Object.entries(ETYPE).map(([a,b])=>`<option value="${a}">${b}</option>`).join('')}</select></label>
+  <label>المبلغ<input id="m_amt" inputmode="decimal"></label><label>عن شهر<input type="month" id="m_per" value="${today().slice(0,7)}"></label>
+  <label>التاريخ<input type="date" id="m_date" value="${today()}"></label><label class="full">ملاحظة<input id="m_note"></label></div>
+  <div class="btns"><button class="btn" onclick="saveManual()">💾 حفظ</button></div>`)}
+async function saveManual(){try{await dbSet('elec/'+uid('e'),{unit:+v('m_unit'),type:v('m_type'),amount:r2(v('m_amt')),period:v('m_per'),date:v('m_date'),raw:v('m_note'),manual:true,at:Date.now()});closeModal();toast('تم الحفظ ✓')}catch(e){}}
+function elecLog(n){const rows=elecRows(n).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.at||0)-(a.at||0));
+  openModal(`<h3>سجل كهرباء شقة ${n}<button class="x" onclick="closeModal()">×</button></h3>${rows.length?rows.map(r=>`<div class="card" style="padding:12px"><div class="inst"><div><span class="chip ${r.type==='paid'?'st-paid':r.type==='bill'?'st-upcoming':r.type==='due'?'st-late':'st-vacant'}">${ETYPE[r.type]}</span> <b>${r.amount?money(r.amount):''}</b><div class="small muted">${perLabel(r.period)} · ${fd(r.date)}</div>${r.raw?`<div class="small muted" style="margin-top:4px;white-space:pre-wrap">${esc(r.raw).slice(0,300)}</div>`:''}</div><button class="btn sm warn" onclick="delElec('${r._id}',${n})">🗑</button></div></div>`).join(''):'<div class="empty">لا يوجد سجل</div>'}`)}
+async function delElec(id,n){if(!await ask('حذف هذا السجل؟','حذف'))return;try{await dbDel('elec/'+id);toast('تم الحذف');setTimeout(()=>elecLog(n),300)}catch(e){}}
+
+/* ---------- البطاقات ---------- */
+function elecCardRows(u){return[['المستأجر',u.tenant.name||'شاغرة'],['رقم الاشتراك',u.elec.subscription||'-'],['رقم الحساب',u.elec.account||'-'],['رقم العداد',u.elec.meter||'-'],['الرقم المكتوب على العداد',u.elec.meterLabel||'-']]}
+function vCards(){
+  return `<p class="muted small" style="margin:0 4px 12px">بطاقة لكل شقة فيها معلومات الكهرباء كاملة. احفظها كصورة وأرسلها للمستأجر، أو أرسلها كنص عبر واتساب.</p><div class="grid g2">`+UNITS.map(n=>{const u=unit(n);
+    return`<div><div class="ecard"><div class="h"><b>⚡ بطاقة معلومات الكهرباء · شقة ${n}</b><span>${esc(bName())} · ${loc(u)}</span></div><div class="rows">${elecCardRows(u).map(([l,x])=>`<div class="r"><span>${l}</span><b class="${/[؀-ۿ]/.test(x)?'ar':''}">${esc(x)}</b></div>`).join('')}</div></div>
+    <div class="btns"><button class="btn sm" onclick="cardImage(${n})">🖼️ صورة البطاقة</button><button class="btn sm sec2" onclick="copyText(cardText(${n}))">📋 نسخ النص</button>${u.tenant.phone?`<a class="btn sm wa" target="_blank" rel="noopener" href="${waLink(u.tenant.phone,cardText(n))}">💬 إرسال واتساب</a>`:''}<button class="btn sm ghost" onclick="unitModal(${n})">✏️</button></div></div>`}).join('')+`</div>`;
+}
+function cardText(n){const u=unit(n);return `⚡ معلومات الكهرباء\n${bName()} · ${bAddr()}\nشقة رقم ${n} (${loc(u)})\n`+elecCardRows(u).map(([l,x])=>`${l}: ${x}`).join('\n')+`\n\nللسداد: تطبيق الشركة السعودية للكهرباء أو عبر سداد في تطبيق البنك.${ST().secPhone?'\nخدمة العملاء: '+ST().secPhone:''}`}
+
+/* ---------- الرسم على Canvas ---------- */
+let fontsOk=false;async function fontsReady(){if(fontsOk)return;try{await Promise.all(['400','500','700'].map(w=>document.fonts.load(w+' 40px "IBM Plex Sans Arabic"')))}catch(e){}fontsOk=true}
+function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath()}
+async function drawCard({title,sub,rows,footer,stamp}){
+  await fontsReady();const F='"IBM Plex Sans Arabic",sans-serif';
+  const W=1080,rowH=122,H=360+rows.length*rowH+(stamp?120:0)+150;
+  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  x.fillStyle='#f5f2ea';x.fillRect(0,0,W,H);
+  const g=x.createLinearGradient(0,0,W,260);g.addColorStop(0,'#0f766e');g.addColorStop(1,'#14b8a6');
+  rr(x,40,40,W-80,260,40);x.fillStyle=g;x.fill();
+  x.fillStyle='rgba(255,255,255,.08)';x.beginPath();x.arc(150,120,140,0,7);x.fill();x.beginPath();x.arc(60,300,90,0,7);x.fill();
+  x.direction='rtl';x.textAlign='right';x.fillStyle='#fff';
+  x.font=`700 56px ${F}`;x.fillText(title,W-90,140);
+  x.font=`500 36px ${F}`;x.fillText(sub,W-90,202);
+  x.font=`400 28px ${F}`;x.globalAlpha=.88;x.fillText(bName()+' · '+bAddr(),W-90,256);x.globalAlpha=1;
+  let y=340;
+  rows.forEach(([l,val])=>{val=String(val??'-');rr(x,40,y,W-80,rowH-18,26);x.fillStyle='#ffffff';x.fill();
+    x.direction='rtl';x.textAlign='right';x.fillStyle='#6b7a76';x.font=`500 30px ${F}`;x.fillText(l,W-80,y+64);
+    const lw=x.measureText(l).width;const maxW=W-160-lw-40;let fs=40;const ar=/[؀-ۿ]/.test(val);
+    do{x.font=`700 ${fs}px ${F}`;fs-=2}while(x.measureText(val).width>maxW&&fs>20);
+    x.fillStyle='#1f2d2b';x.direction=ar?'rtl':'ltr';x.textAlign='left';x.fillText(val,80,y+66);y+=rowH});
+  x.direction='rtl';
+  if(stamp){rr(x,W/2-200,y+10,400,90,45);x.strokeStyle='#15803d';x.lineWidth=5;x.stroke();x.fillStyle='#15803d';x.textAlign='center';x.font=`700 40px ${F}`;x.fillText(stamp,W/2,y+70);y+=120}
+  x.textAlign='center';x.fillStyle='#6b7a76';x.font=`400 26px ${F}`;(footer||[]).forEach((f,k)=>x.fillText(f,W/2,y+50+k*40));
+  return await new Promise(r=>c.toBlob(r,'image/png'));
+}
+async function showImage(blob,filename,caption){
+  const url=URL.createObjectURL(blob);
+  openModal(`<h3>${esc(caption)}<button class="x" onclick="closeModal()">×</button></h3><img class="imgprev" src="${url}"><p class="small muted">في الجوال تقدر تضغط مطولاً على الصورة وتحفظها.</p><div class="btns"><button class="btn" id="saveImg">📤 مشاركة / حفظ الصورة</button><button class="btn ghost" onclick="closeModal()">إغلاق</button></div>`);
+  $('#saveImg').onclick=()=>saveFile(filename,blob,true);
+}
+async function cardImage(n){const u=unit(n);toast('جاري تجهيز الصورة...');
+  const blob=await drawCard({title:'⚡ بطاقة معلومات الكهرباء',sub:`شقة رقم ${n} · ${loc(u)}`,rows:elecCardRows(u),footer:['للسداد: تطبيق الشركة السعودية للكهرباء أو عبر سداد في تطبيق البنك',ST().secPhone?'خدمة العملاء '+ST().secPhone:'']});
+  showImage(blob,`كهرباء-شقة-${n}.png`,'بطاقة شقة '+n)}
+async function receipt(pid,k){const i=allInst().find(x=>x.id===pid);const e=i.entries[k];if(!e)return;toast('جاري تجهيز السند...');
+  const paidUpTo=sum(i.entries.slice(0,k+1),z=>z.amount);const rest=r2(Math.max(0,i.amount-paidUpTo));
+  const blob=await drawCard({title:'🧾 سند قبض إيجار',sub:`شقة رقم ${i.unit} · سند رقم ${e.rno||'-'}`,rows:[['استلمنا من',i.tenant.name||'-'],['مبلغ وقدره',money(e.amount)],['عن إيجار الفترة',`${fd(i.due)} إلى ${fd(i.to)}`],['تاريخ الاستلام',fd(e.date)],['طريقة الدفع',e.method||'-'],['المتبقي من القسط',rest>0?money(rest):'لا يوجد']],stamp:rest>0?'دفعة جزئية':'تم الاستلام ✓',footer:[ST().ownerName?'المؤجر: '+ST().ownerName:'',ST().ownerPhone?'جوال: '+ST().ownerPhone:'']});
+  showImage(blob,`سند-قبض-شقة-${i.unit}-${e.rno||k}.png`,'سند قبض شقة '+i.unit)}
+
+/* ---------- المصروفات ---------- */
+function vExp(){
+  let rows=Object.values(S.expenses).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  if(expFilter!=='all')rows=rows.filter(r=>String(r.unit)===expFilter);
+  const y=today().slice(0,4);
+  let h=`<div class="filters"><button class="btn" onclick="expModal()">➕ إضافة مصروف</button><select onchange="expFilter=this.value;render()"><option value="all">الكل</option><option value="0" ${expFilter==='0'?'selected':''}>العمارة (عام)</option>${UNITS.map(n=>`<option value="${n}" ${expFilter==n?'selected':''}>شقة ${n}</option>`).join('')}</select></div>
+  <div class="kpis" style="margin-bottom:12px">${kpi('🧾','مصروفات '+y,money(sum(rows.filter(r=>(r.date||'').startsWith(y)),r=>r.amount)),'amber')}${kpi('📦','الإجمالي المعروض',money(sum(rows,r=>r.amount)),'pri')}</div>`;
+  if(!rows.length)return h+`<div class="card empty">لا توجد مصروفات مسجلة. سجّل الصيانة والرسوم لتعرف صافي دخلك الحقيقي.</div>`;
+  return h+rows.map(r=>`<div class="card" style="padding:12px"><div class="inst"><div><span class="chip st-soon">${esc(r.category)}</span> <b>${money(r.amount)}</b><div class="small muted">${r.unit&&r.unit!='0'?'شقة '+r.unit:'العمارة'} · ${fd(r.date)}${r.note?' · '+esc(r.note):''}</div></div><div style="display:flex;gap:6px"><button class="btn sm ghost" onclick="expModal('${r._id}')">✏️</button><button class="btn sm warn" onclick="delExp('${r._id}')">🗑</button></div></div></div>`).join('');
+}
+function expModal(id){const r=id?S.expenses[id]:{};openModal(`<h3>${id?'تعديل':'إضافة'} مصروف<button class="x" onclick="closeModal()">×</button></h3><div class="form">
+  <label>البند<select id="x_cat">${EXP_CATS.map(c=>`<option ${c===r.category?'selected':''}>${c}</option>`).join('')}</select></label>
+  <label>يخص<select id="x_unit"><option value="0">العمارة (عام)</option>${UNITS.map(n=>`<option value="${n}" ${r.unit==n?'selected':''}>شقة ${n}</option>`).join('')}</select></label>
+  <label>المبلغ<input id="x_amt" inputmode="decimal" value="${esc(r.amount||'')}"></label><label>التاريخ<input type="date" id="x_date" value="${esc(r.date||today())}"></label>
+  <label class="full">الوصف<input id="x_note" value="${esc(r.note||'')}" placeholder="مثال: تصليح سخان"></label></div>
+  <div class="btns"><button class="btn" onclick="saveExp('${id||''}')">💾 حفظ</button></div>`)}
+async function saveExp(id){const amt=r2(v('x_amt').replace(/,/g,''));if(!amt){toast('اكتب المبلغ');return}
+  try{await dbSet('expenses/'+(id||uid('x')),{category:v('x_cat'),unit:+v('x_unit'),amount:amt,date:v('x_date'),note:v('x_note'),at:Date.now()});closeModal();toast('تم الحفظ ✓')}catch(e){}}
+async function delExp(id){if(await ask('حذف هذا المصروف؟','حذف'))try{await dbDel('expenses/'+id);toast('تم الحذف')}catch(e){}}
+
+/* ---------- التقارير ---------- */
+const REPORTS=[['summary','📈 الملخص المالي'],['units','🏠 أداء الشقق'],['arrears','⏰ المتأخرات'],['upcoming','📅 المستحقات القادمة'],['statement','📑 كشف حساب مستأجر'],['contracts','📄 العقود'],['elec','⚡ الكهرباء'],['expenses','🧾 المصروفات'],['history','🗂️ أرشيف المستأجرين']];
+function tbl(head,rows,foot){return`<div class="tbl"><table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${head.length}" class="empty">لا توجد بيانات</td></tr>`}</tbody>${foot?`<tfoot><tr>${foot.map(c=>`<td>${c}</td>`).join('')}</tr></tfoot>`:''}</table></div>`}
+function buildReport(){
+  const t=today(),Y=String(repYear);const ins=allInst();const ents=allEntries();const exps=Object.values(S.expenses);
+  let title='',body='',csv=[];
+  if(repType==='summary'){title='الملخص المالي لسنة '+Y;
+    const m=MONTHS.map((nm,i)=>{const p=Y+'-'+String(i+1).padStart(2,'0');const exp=sum(ins.filter(x=>x.due.startsWith(p)),x=>x.amount);const col=sum(ents.filter(e=>(e.date||'').startsWith(p)),e=>e.amount);const ex=sum(exps.filter(e=>(e.date||'').startsWith(p)),e=>e.amount);const el=sum(Object.values(S.elec).filter(e=>e.type==='bill'&&(e.period||'')===p),e=>e.amount);return{nm,exp,col,ex,el,net:col-ex}});
+    const TE=sum(m,x=>x.exp),TC=sum(m,x=>x.col),TX=sum(m,x=>x.ex),TL=sum(m,x=>x.el);const mx=Math.max(1,...m.map(x=>Math.max(x.exp,x.col)));
+    const lateAmt=sum(ins.filter(i=>['late','partial'].includes(iStatus(i))),remain);
+    body=`<div class="kpis" style="margin-bottom:12px">${kpi('🎯','المتوقع تحصيله',money(TE),'blue')}${kpi('💵','المحصّل فعلياً',money(TC),'green')}${kpi('📊','نسبة التحصيل',(TE?Math.round(TC/TE*100):0)+'%','pri')}${kpi('🧾','المصروفات',money(TX),'amber')}${kpi('💰','صافي الدخل',money(TC-TX),'green')}${kpi('⏰','إجمالي المتأخرات الآن',money(lateAmt),'red')}</div>
+     <div class="card"><b>المتوقع مقابل المحصّل شهرياً</b><div class="legend"><span><i style="background:#cfe9e3"></i>المتوقع</span><span><i style="background:var(--pri)"></i>المحصّل</span></div><div class="bars">${m.map(x=>`<div class="brow"><span>${x.nm}</span><div class="btrack"><div class="b1" style="width:${x.exp/mx*100}%"></div><div class="b2" style="width:${x.col/mx*100}%"></div></div></div>`).join('')}</div></div>`+
+     tbl(['الشهر','المتوقع','المحصّل','المصروفات','صافي','فواتير الكهرباء'],m.map(x=>[x.nm,nf(x.exp),nf(x.col),nf(x.ex),nf(x.net),nf(x.el)]),['الإجمالي',nf(TE),nf(TC),nf(TX),nf(TC-TX),nf(TL)]);
+    csv=[['الشهر','المتوقع','المحصل','المصروفات','الصافي','فواتير الكهرباء'],...m.map(x=>[x.nm,x.exp,x.col,x.ex,x.net,x.el]),['الإجمالي',TE,TC,TX,TC-TX,TL]];}
+  else if(repType==='units'){title='أداء الشقق لسنة '+Y;
+    const rows=UNITS.map(n=>{const u=unit(n);const ui=ins.filter(i=>i.unit==n);const col=sum(ents.filter(e=>e.unit==n&&(e.date||'').startsWith(Y)),e=>e.amount);const exp=sum(ui.filter(i=>i.due.startsWith(Y)),i=>i.amount);const late=sum(ui.filter(i=>['late','partial'].includes(iStatus(i))),remain);const ex=sum(exps.filter(e=>e.unit==n&&(e.date||'').startsWith(Y)),e=>e.amount);const el=elecStatus(n).outstanding;
+      return[n,occupied(u)?u.tenant.name:'شاغرة',occupied(u)?+u.contract.annualRent||0:0,occupied(u)?CYC_SHORT[u.contract.cycle]||'-':'-',exp,col,late,el,ex,col-ex]});
+    const occ=UNITS.filter(n=>occupied(unit(n))).length;
+    body=`<div class="kpis" style="margin-bottom:12px">${kpi('🏠','نسبة الإشغال',Math.round(occ/6*100)+'%','pri')}${kpi('📈','الدخل السنوي للعقود الحالية',money(sum(rows,r=>r[2])),'blue')}${kpi('💵','المحصّل '+Y,money(sum(rows,r=>r[5])),'green')}${kpi('⏰','المتأخرات',money(sum(rows,r=>r[6])),'red')}</div>`+
+      tbl(['شقة','المستأجر','الإيجار السنوي','الدفع','المتوقع '+Y,'المحصّل','متأخرات','كهرباء غير مسددة','مصروفات','الصافي'],rows.map(r=>[r[0],esc(r[1]),nf(r[2]),r[3],nf(r[4]),nf(r[5]),nf(r[6]),nf(r[7]),nf(r[8]),nf(r[9])]),['','الإجمالي',nf(sum(rows,r=>r[2])),'',nf(sum(rows,r=>r[4])),nf(sum(rows,r=>r[5])),nf(sum(rows,r=>r[6])),nf(sum(rows,r=>r[7])),nf(sum(rows,r=>r[8])),nf(sum(rows,r=>r[9]))]);
+    csv=[['شقة','المستأجر','الإيجار السنوي','نظام الدفع','المتوقع','المحصل','متأخرات','كهرباء غير مسددة','مصروفات','الصافي'],...rows];}
+  else if(repType==='arrears'){title='تقرير المتأخرات حتى '+fd(t);
+    const L=ins.filter(i=>['late','partial'].includes(iStatus(i))).map(i=>({...i,d:dBetween(i.due,t)})).sort((a,b)=>b.d-a.d);
+    const B=[['حتى 30 يوم',0,30],['31 إلى 60',31,60],['61 إلى 90',61,90],['أكثر من 90',91,1e9]].map(([l,a,b])=>[l,sum(L.filter(i=>i.d>=a&&i.d<=b),remain)]);
+    body=`<div class="kpis" style="margin-bottom:12px">${B.map(([l,x])=>kpi('⏰',l,money(x),x>0?'red':'green')).join('')}</div>`+tbl(['شقة','المستأجر','الاستحقاق','أيام التأخير','القيمة','المدفوع','المتبقي'],L.map(i=>[i.unit,esc(i.tenant.name),fd(i.due),i.d,nf(i.amount),nf(i.paid),nf(remain(i))]),['','الإجمالي','','',nf(sum(L,i=>i.amount)),nf(sum(L,i=>i.paid)),nf(sum(L,remain))]);
+    csv=[['شقة','المستأجر','الاستحقاق','أيام التأخير','القيمة','المدفوع','المتبقي'],...L.map(i=>[i.unit,i.tenant.name,i.due,i.d,i.amount,i.paid,remain(i)])];}
+  else if(repType==='upcoming'){title='المستحقات خلال 90 يوم القادمة';
+    const U=ins.filter(i=>i.active&&i.due>t&&dBetween(t,i.due)<=90&&iStatus(i)!=='paid').sort((a,b)=>a.due.localeCompare(b.due));
+    const b=[30,60,90].map(d=>sum(U.filter(i=>dBetween(t,i.due)<=d),remain));
+    body=`<div class="kpis" style="margin-bottom:12px">${kpi('📅','خلال 30 يوم',money(b[0]),'amber')}${kpi('📅','خلال 60 يوم',money(b[1]),'amber')}${kpi('📅','خلال 90 يوم',money(b[2]),'blue')}</div>`+tbl(['شقة','المستأجر','الاستحقاق','هجري','بعد (يوم)','المبلغ'],U.map(i=>[i.unit,esc(i.tenant.name),fd(i.due),hij(i.due),dBetween(t,i.due),nf(remain(i))]),['','الإجمالي','','','',nf(sum(U,remain))]);
+    csv=[['شقة','المستأجر','الاستحقاق','بعد (يوم)','المبلغ'],...U.map(i=>[i.unit,i.tenant.name,i.due,dBetween(t,i.due),remain(i)])];}
+  else if(repType==='statement'){const u=unit(repUnit);title=`كشف حساب شقة ${repUnit}${occupied(u)?' · '+u.tenant.name:''}`;
+    const I=ins.filter(i=>i.unit==repUnit).sort((a,b)=>a.due.localeCompare(b.due));let bal=0;const rows=[];
+    I.forEach(i=>{bal+=i.amount;rows.push([fd(i.due),`قسط ${fd(i.due)} إلى ${fd(i.to)}${!i.active?' (أرشيف)':''}`,esc(i.tenant.name),nf(i.amount),'',nf(bal)]);i.entries.forEach(e=>{bal-=e.amount;rows.push([fd(e.date),`دفعة · سند ${e.rno||''} · ${e.method||''}`,esc(i.tenant.name),'',nf(e.amount),nf(bal)])})});
+    body=`<div class="filters"><select onchange="repUnit=+this.value;render()">${UNITS.map(n=>`<option value="${n}" ${repUnit==n?'selected':''}>شقة ${n}</option>`).join('')}</select></div>
+    <div class="kpis" style="margin-bottom:12px">${kpi('📋','إجمالي المطالبات',money(sum(I,i=>i.amount)),'blue')}${kpi('✅','إجمالي المدفوع',money(sum(I,i=>i.paid)),'green')}${kpi('⚖️','الرصيد الحالي',money(sum(I.filter(i=>i.due<=t),remain)),'red')}</div>`+tbl(['التاريخ','البيان','المستأجر','مدين','دائن','الرصيد'],rows);
+    csv=[['التاريخ','البيان','المستأجر','مدين','دائن','الرصيد'],...rows.map(r=>r.map(c=>String(c).replace(/<[^>]+>/g,'')))];}
+  else if(repType==='contracts'){title='تقرير العقود الحالية';
+    const C=allContracts().filter(c=>c.active);
+    const rows=C.map(c=>{const e=cEnd(c.contract);const d=dBetween(t,e);return[c.unit,esc(c.tenant.name),fd(c.contract.start),fd(e),d<0?`<span style="color:var(--red)">منتهي منذ ${-d}</span>`:d<=60?`<span style="color:var(--amber)">${d}</span>`:d,nf(c.contract.annualRent),CYC_SHORT[c.contract.cycle]||'-',nf(c.contract.deposit),esc(c.contract.ejarNo||'غير موثق')]});
+    body=tbl(['شقة','المستأجر','البداية','النهاية','الأيام المتبقية','الإيجار السنوي','الدفع','التأمين','عقد إيجار'],rows,['','الإجمالي','','','',nf(sum(C,c=>c.contract.annualRent)),'',nf(sum(C,c=>c.contract.deposit)),'']);
+    csv=[['شقة','المستأجر','البداية','النهاية','الأيام المتبقية','الإيجار السنوي','الدفع','التأمين','عقد إيجار'],...C.map(c=>[c.unit,c.tenant.name,c.contract.start,cEnd(c.contract),dBetween(t,cEnd(c.contract)),c.contract.annualRent,CYC_SHORT[c.contract.cycle],c.contract.deposit,c.contract.ejarNo])];}
+  else if(repType==='elec'){title='تقرير الكهرباء لسنة '+Y;
+    const head=['شقة',...MONTHS.map(m=>m.slice(0,6)),'الإجمالي','غير مسدد'];
+    const rows=UNITS.map(n=>{const e=elecStatus(n);const per=MONTHS.map((_,i)=>{const p=Y+'-'+String(i+1).padStart(2,'0');const b=e.bills.filter(x=>x.period===p);return b.length?{a:sum(b,x=>x.amount),s:b.every(x=>x._st==='paid')}:null});return{n,per,tot:sum(per.filter(Boolean),x=>x.a),out:e.outstanding}});
+    body=`<div class="kpis" style="margin-bottom:12px">${kpi('⚡','إجمالي الفواتير',money(sum(rows,r=>r.tot)),'blue')}${kpi('⏰','غير مسدد حالياً',money(sum(rows,r=>r.out)),'red')}</div><p class="small muted">🟢 مسددة · 🔴 غير مسددة</p>`+tbl(head,rows.map(r=>[r.n,...r.per.map(x=>x?`${x.s?'🟢':'🔴'} ${nf(x.a)}`:'-'),nf(r.tot),nf(r.out)]));
+    csv=[head,...rows.map(r=>[r.n,...r.per.map(x=>x?x.a:''),r.tot,r.out])];}
+  else if(repType==='expenses'){title='تقرير المصروفات لسنة '+Y;
+    const E=exps.filter(e=>(e.date||'').startsWith(Y));const cats=[...new Set(E.map(e=>e.category))];
+    const byCat=cats.map(c=>[c,sum(E.filter(e=>e.category===c),e=>e.amount)]).sort((a,b)=>b[1]-a[1]);const mx=Math.max(1,...byCat.map(x=>x[1]));
+    body=`<div class="card"><b>حسب البند</b><div class="bars" style="margin-top:10px">${byCat.map(([c,a])=>`<div class="brow" style="grid-template-columns:110px 1fr"><span>${esc(c)} · ${nf(a)}</span><div class="b2" style="width:${a/mx*100}%;height:14px"></div></div>`).join('')||'<span class="muted">لا توجد بيانات</span>'}</div></div>`+
+     tbl(['التاريخ','البند','يخص','الوصف','المبلغ'],E.sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(e=>[fd(e.date),esc(e.category),e.unit&&e.unit!='0'?'شقة '+e.unit:'العمارة',esc(e.note||''),nf(e.amount)]),['','','','الإجمالي',nf(sum(E,e=>e.amount))]);
+    csv=[['التاريخ','البند','يخص','الوصف','المبلغ'],...E.map(e=>[e.date,e.category,e.unit||'العمارة',e.note,e.amount])];}
+  else if(repType==='history'){title='أرشيف المستأجرين السابقين';
+    const A=Object.values(S.archive).sort((a,b)=>(b.endedAt||'').localeCompare(a.endedAt||''));
+    const rows=A.map(a=>{const I=schedule(a.contract,a.unit);return[a.unit,esc(a.tenant&&a.tenant.name||'-'),fd(a.contract.start),fd(a.endedAt),nf(a.contract.annualRent),nf(sum(I,i=>i.paid)),nf(sum(I,remain)),esc(a.endNote||'')]});
+    body=tbl(['شقة','المستأجر','البداية','الإخلاء','الإيجار السنوي','المدفوع','المتبقي عليه','ملاحظات'],rows);
+    csv=[['شقة','المستأجر','البداية','الإخلاء','الإيجار السنوي','المدفوع','المتبقي','ملاحظات'],...A.map(a=>{const I=schedule(a.contract,a.unit);return[a.unit,a.tenant&&a.tenant.name,a.contract.start,a.endedAt,a.contract.annualRent,sum(I,i=>i.paid),sum(I,remain),a.endNote]})];}
+  return{title,body,csv};
+}
+function vRep(){
+  const R=buildReport();const yrs=[];for(let y=new Date().getFullYear()+1;y>=2024;y--)yrs.push(y);
+  return `<div class="seg">${REPORTS.map(([k,l])=>`<button class="${repType===k?'on':''}" onclick="repType='${k}';render()">${l}</button>`).join('')}</div>
+  <div class="filters"><select onchange="repYear=+this.value;render()">${yrs.map(y=>`<option ${y==repYear?'selected':''}>${y}</option>`).join('')}</select>
+  <button class="btn sm sec2" onclick="exportCSV()">📥 Excel (CSV)</button><button class="btn sm sec2" onclick="exportHTML()">📄 تنزيل التقرير</button><button class="btn sm sec2" onclick="window.print()">🖨️ طباعة / PDF</button></div>
+  <h2 class="sec">${esc(R.title)}</h2><div class="small muted" style="margin:-6px 4px 10px">تاريخ التقرير ${fd(today())} · ${hij(today())}</div>${R.body}`;
+}
+async function saveFile(filename,data,share){
+  const ext=filename.split('.').pop().toLowerCase();const types={png:'image/png',csv:'text/csv',html:'text/html',json:'application/json'};
+  const blob=data instanceof Blob?data:new Blob([data],{type:(types[ext]||'application/octet-stream')+';charset=utf-8'});
+  if(share&&navigator.canShare){try{const f=new File([blob],filename,{type:blob.type||types[ext]});if(navigator.canShare({files:[f]})){await navigator.share({files:[f],title:filename});return}}catch(e){if(e.name==='AbortError')return}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);toast('تم التنزيل ✓')}
+function exportCSV(){const R=buildReport();const csv='﻿'+R.csv.map(r=>r.map(c=>{c=String(c??'');return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c}).join(',')).join('\n');saveFile(R.title.replace(/\s+/g,'-')+'.csv',csv)}
+function exportHTML(){const R=buildReport();const css=[...document.querySelectorAll('style')].map(s=>s.textContent).join('');
+  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(R.title)}</title><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet"><style>${css} body{padding:20px}</style></head><body><main><h1 style="font-size:20px">${esc(bName())} · ${esc(R.title)}</h1><p class="muted small">${esc(bAddr())} · تاريخ التقرير ${fd(today())}</p>${R.body.replace(/<select[\s\S]*?<\/select>/g,'')}</main></body></html>`;
+  saveFile(R.title.replace(/\s+/g,'-')+'.html',html)}
+
+/* ---------- الإعدادات ---------- */
+function vSet(){const s=ST();
+  return `<div class="card"><b>🏢 بيانات العمارة والمالك</b><div class="form" style="margin-top:10px">
+   <label>اسم العمارة<input id="s_name" value="${esc(s.buildingName||'عمارة طيبة')}"></label><label>العنوان<input id="s_addr" value="${esc(s.address||'الدمام، حي طيبة')}"></label>
+   <label>اسم المؤجر (يظهر في السندات)<input id="s_owner" value="${esc(s.ownerName||'')}"></label><label>جوال المؤجر<input id="s_ophone" value="${esc(s.ownerPhone||'')}"></label>
+   <label>رقم خدمة عملاء الكهرباء (يظهر في البطاقة)<input id="s_sec" value="${esc(s.secPhone||'')}" placeholder="اختياري"></label></div>
+   <div class="btns"><button class="btn" onclick="saveSettings()">💾 حفظ</button></div></div>
+  <div class="card"><b>💾 النسخ الاحتياطي</b><p class="small muted">بياناتك محفوظة في حسابك وتتزامن تلقائياً، لكن النسخة الاحتياطية الشهرية عادة ممتازة.</p>
+   <div class="btns"><button class="btn sec2" onclick="backup()">📥 تنزيل نسخة احتياطية</button><label class="btn ghost" style="cursor:pointer">📤 استعادة من ملف<input type="file" accept=".json,application/json" style="display:none" onchange="restore(this.files[0])"></label></div></div>
+  <div class="card tips"><b>💡 نصائح لإدارة إيجاراتك</b><ol class="small" style="padding-right:18px;margin-bottom:0">
+   <li>وثّق كل عقد في منصة إيجار وسجّل رقمه في بيانات الشقة. العقد الموثق سند تنفيذي، يعني عند التعثر تروح لمحكمة التنفيذ مباشرة بدون دعوى طويلة.</li>
+   <li>عند توثيق العقد في إيجار تقدر تربط عداد الكهرباء بالعقد فيصير الحساب باسم المستأجر طول مدة العقد، وهذا يحميك من تراكم الفواتير عليك.</li>
+   <li>سجّل قراءة العداد يوم الاستلام ويوم الإخلاء، وصوّر الشقة بالتفصيل قبل التسليم وبعده. هذا أقوى دليل عند خصم شيء من التأمين.</li>
+   <li>خذ مبلغ تأمين وسجّله في العقد، وارجع له عند الإخلاء من شاشة إنهاء العقد.</li>
+   <li>استخدم زر التذكير بالواتساب قبل الاستحقاق بأسبوع، والمستأجر اللي يتذكر يسدد أسرع.</li>
+   <li>أرسل سند قبض بعد كل دفعة، يحفظ حقك وحق المستأجر ويمنع أي خلاف لاحقاً.</li>
+   <li>الصق رسائل الكهرباء أول بأول. لو تأخر مستأجر عن سداد شهرين، كلمه قبل ما توصل لإنذار الفصل.</li>
+   <li>ابدأ كلام التجديد أو الإخلاء قبل نهاية العقد بـ 60 يوم، والبرنامج ينبهك تلقائياً.</li>
+   <li>تأكد من سريان هوية أو إقامة المستأجر وقت التوقيع، واحفظ رقم جوال ثاني للطوارئ.</li>
+   <li>سجّل كل مصروف صيانة على الشقة اللي يخصها، عشان تعرف صافي دخل كل شقة الحقيقي وتقرر الإيجار المناسب عند التجديد.</li>
+  </ol></div>
+  <div class="card"><b>👤 الحساب</b><p class="small muted">مسجل الدخول باسم <span class="num">${esc(fbUser&&fbUser.email||'')}</span></p><div class="btns"><button class="btn warn" onclick="logout()">🚪 تسجيل الخروج</button></div></div>
+  <p class="small muted" style="text-align:center">افتح الرابط من أي جوال أو كمبيوتر وسجل دخولك، وكل تعديل يظهر في باقي الأجهزة تلقائياً. أضف الصفحة للشاشة الرئيسية في جوالك لتفتح بضغطة.</p>`}
+async function saveSettings(){try{await dbSet('settings/main',{buildingName:v('s_name'),address:v('s_addr'),ownerName:v('s_owner'),ownerPhone:v('s_ophone'),secPhone:v('s_sec')});toast('تم الحفظ ✓')}catch(e){}}
+function backup(){const o={version:1,exportedAt:new Date().toISOString()};COLS.forEach(c=>{o[c]=Object.fromEntries(Object.entries(S[c]).map(([k,x])=>[k,clean(x)]))});saveFile('نسخة-احتياطية-'+bName().replace(/\s+/g,'-')+'-'+today()+'.json',JSON.stringify(o,null,1))}
+async function restore(f){if(!f)return;let o;try{o=JSON.parse(await f.text())}catch(e){toast('الملف غير صالح');return}
+  if(!await ask('استعادة النسخة ستكتب فوق البيانات الموجودة بنفس المعرفات. متابعة؟','استعادة'))return;
+  let n=0;try{for(const c of COLS){for(const[k,x]of Object.entries(o[c]||{})){await dbSet(c+'/'+k,clean(x));n++}}toast('تمت استعادة '+n+' سجل ✓')}catch(e){}}
+
+renderTabs();render();
+</script>
+</body>
+</html>
