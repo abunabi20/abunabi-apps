@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="الانتهاءات">
+<meta name="theme-color" content="#0f766e">
+<title>متابعة الانتهاءات والتجديدات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../shared/firebase-config.js"></script>
+<style>
+:root{
+  --bg:#f5f2ea;--card:#ffffff;--card2:#faf8f3;--ink:#1f2d2b;--muted:#6b7a76;--line:#e7e1d4;
+  --pri:#0f766e;--pri2:#14b8a6;--priSoft:#e3f3ef;
+  --amber:#c27a12;--amberSoft:#fdf2df;
+  --green:#15803d;--greenSoft:#e5f5ea;
+  --red:#c2410c;--redSoft:#fdebe4;
+  --blue:#2563eb;--blueSoft:#e6eefc;
+  --purple:#7c3aed;--purpleSoft:#f0e9fe;
+  --grey:#8a948f;--greySoft:#eeefec;
+  --r:18px;--sh:0 6px 22px rgba(31,45,43,.07);
+}
+[data-theme=dark]{
+  --bg:#0f1716;--card:#18221f;--card2:#1d2926;--ink:#e6eeeb;--muted:#93a39e;--line:#2a3733;
+  --pri:#2dd4bf;--pri2:#14b8a6;--priSoft:#133a34;
+  --amber:#f2b34c;--amberSoft:#3a2d14;--green:#4ade80;--greenSoft:#163322;
+  --red:#fb8a5c;--redSoft:#3d1f15;--blue:#7aa7ff;--blueSoft:#18264a;
+  --purple:#b69cff;--purpleSoft:#2a2148;--grey:#9aa5a1;--greySoft:#242f2c;
+  --sh:0 6px 22px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:15px;line-height:1.55}
+body{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+button,input,select,textarea{font-family:inherit;font-size:15px}
+.top{background:linear-gradient(120deg,#0f766e,#14a38f 60%,#2bb39b);color:#fff;padding:calc(18px + env(safe-area-inset-top)) 18px 54px}
+[data-theme=dark] .top{background:linear-gradient(120deg,#0b4d47,#0f766e 60%,#13887a)}
+.top .row{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1100px;margin:auto}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:26px}
+.brand h1{margin:0;font-size:20px;font-weight:700}.brand p{margin:0;opacity:.85;font-size:13px}
+.tops{display:flex;gap:6px;align-items:center}
+.sync{font-size:12px;background:rgba(255,255,255,.18);padding:6px 10px;border-radius:999px;white-space:nowrap}
+.ibtn{border:0;background:rgba(255,255,255,.18);color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:16px}
+nav#tabs{position:sticky;top:0;z-index:20;max-width:1100px;margin:-38px auto 0;padding:0 12px}
+.tabbar{display:flex;gap:6px;overflow-x:auto;background:var(--card);border-radius:16px;padding:6px;box-shadow:var(--sh);scrollbar-width:none}
+.tabbar::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;border:0;background:transparent;padding:9px 13px;border-radius:12px;color:var(--muted);font-weight:600;cursor:pointer;display:flex;gap:6px;align-items:center}
+.tab.on{background:var(--priSoft);color:var(--pri)}
+main{max-width:1100px;margin:auto;padding:16px 12px}
+h2.sec{font-size:17px;margin:22px 4px 10px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:var(--sh);border-top:4px solid var(--c);cursor:default}
+.kpi.clk{cursor:pointer}
+.kpi .i{font-size:20px}.kpi .l{color:var(--muted);font-size:13px}.kpi .v{font-size:21px;font-weight:700;margin-top:2px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:16px;margin-bottom:12px}
+.grid{display:grid;gap:12px}.g2{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}.g3{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;background:var(--s);color:var(--c);white-space:nowrap}
+.st-expired{--s:var(--redSoft);--c:var(--red)}
+.st-soon{--s:var(--amberSoft);--c:var(--amber)}
+.st-ok{--s:var(--greenSoft);--c:var(--green)}
+.st-renewing{--s:var(--blueSoft);--c:var(--blue)}
+.st-nodate,.st-arch{--s:var(--greySoft);--c:var(--grey)}
+.st-info{--s:var(--priSoft);--c:var(--pri)}
+.st-purple{--s:var(--purpleSoft);--c:var(--purple)}
+.btn{border:0;border-radius:12px;padding:9px 14px;font-weight:600;cursor:pointer;background:var(--pri);color:#fff;display:inline-flex;gap:6px;align-items:center;justify-content:center;text-decoration:none;font-size:14px}
+[data-theme=dark] .btn{color:#06231f}
+.btn.sec2{background:var(--priSoft);color:var(--pri)}
+.btn.ghost{background:var(--greySoft);color:var(--ink)}
+.btn.warn{background:var(--redSoft);color:var(--red)}
+.btn.wa{background:#e3f6e8;color:#128c4a}
+.btn.sm{padding:6px 10px;font-size:13px;border-radius:10px}
+.btn:disabled{opacity:.55}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:14px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-weight:600;word-break:break-word}
+.muted{color:var(--muted)}.small{font-size:13px}.num{direction:ltr;unicode-bidi:embed}
+.divider{height:1px;background:var(--line);margin:12px 0}
+select,input,textarea{border:1.5px solid var(--line);border-radius:12px;padding:9px 11px;background:var(--card);color:var(--ink);width:100%;outline:none}
+select:focus,input:focus,textarea:focus{border-color:var(--pri2)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.filters select,.filters input{width:auto;flex:1 1 140px}
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:500}
+.form .full{grid-column:1/-1}
+.fsec{grid-column:1/-1;font-weight:700;color:var(--pri);margin-top:8px;font-size:15px}
+.hint{font-size:12px;color:var(--muted)}
+.seg{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg button{flex:0 0 auto;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:7px 12px;font-weight:600;cursor:pointer;font-size:13px}
+.seg button.on{background:var(--pri);border-color:var(--pri);color:#fff}
+[data-theme=dark] .seg button.on{color:#06231f}
+.empty{text-align:center;color:var(--muted);padding:26px 10px}
+/* بطاقة المتابعة */
+.it{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;background:var(--card);border-radius:16px;padding:12px;box-shadow:var(--sh);cursor:pointer;border-right:5px solid var(--c);margin-bottom:10px;transition:.15s}
+.it:active{transform:scale(.99)}
+.av{width:52px;height:52px;border-radius:14px;background:var(--s);display:grid;place-items:center;font-size:26px;overflow:hidden;flex:0 0 auto;position:relative}
+.av img{width:100%;height:100%;object-fit:cover}
+.av .tb{position:absolute;bottom:-2px;left:-2px;background:var(--card);border-radius:8px;font-size:13px;padding:0 3px;line-height:18px}
+.it .mid{min-width:0}
+.it .mid b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .mid small{display:block;color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd{text-align:center;min-width:66px;background:var(--s);color:var(--c);border-radius:14px;padding:6px 8px}
+.cd .d{font-size:24px;font-weight:700;line-height:1.1}
+.cd small{font-size:11px;font-weight:600;display:block}
+.bar{height:7px;border-radius:9px;background:var(--greySoft);overflow:hidden;margin-top:6px}
+.bar>i{display:block;height:100%;background:var(--c)}
+.ghead{font-weight:700;color:var(--muted);font-size:13px;margin:16px 4px 8px;display:flex;align-items:center;gap:6px}
+/* البطل */
+.hero{background:linear-gradient(135deg,var(--s),var(--card));border-radius:24px;padding:18px;box-shadow:var(--sh);display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;cursor:pointer;border:2px solid var(--s)}
+.ring{width:132px;height:132px;position:relative}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .in{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--c)}
+.ring .in b{font-size:36px;line-height:1;display:block}
+.ring .in small{font-size:12px;font-weight:600}
+.hero h3{margin:0 0 4px;font-size:18px}.hero .bd{font-size:13px;color:var(--muted)}
+.clock{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.clock div{background:var(--card);border-radius:12px;padding:6px 10px;text-align:center;min-width:56px;box-shadow:var(--sh)}
+.clock b{display:block;font-size:20px;color:var(--c)}.clock span{font-size:11px;color:var(--muted)}
+@media(max-width:480px){.hero{grid-template-columns:1fr;justify-items:center;text-align:center}.clock{justify-content:center}}
+/* المساعد */
+.asst{display:flex;gap:10px;align-items:flex-start;background:var(--card);border-radius:14px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--sh);border-right:4px solid var(--c)}
+.asst .ic{font-size:20px}.asst .tx{flex:1}.asst small{color:var(--muted);display:block}
+/* الأشخاص */
+.pc{background:var(--card);border-radius:18px;box-shadow:var(--sh);padding:14px;cursor:pointer;display:flex;gap:12px;align-items:center}
+.pc .ph{width:64px;height:64px;border-radius:18px;background:var(--priSoft);display:grid;place-items:center;font-size:30px;overflow:hidden;flex:0 0 auto}
+.pc .ph img{width:100%;height:100%;object-fit:cover}
+.pc b{display:block;font-size:16px}.pc small{color:var(--muted);display:block;font-size:12.5px}
+.big-ph{width:100%;max-height:260px;object-fit:cover;border-radius:16px;margin-bottom:10px;background:var(--greySoft)}
+.gallery{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.gallery img{width:96px;height:96px;object-fit:cover;border-radius:12px;cursor:pointer;border:1px solid var(--line)}
+/* المودال */
+.modal{position:fixed;inset:0;background:rgba(10,20,18,.5);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.modal.hidden{display:none}
+.sheet{background:var(--bg);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-radius:24px 24px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom))}
+@media(min-width:760px){.modal{align-items:center}.sheet{border-radius:24px}}
+.sheet h3{margin:0 0 12px;font-size:18px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.x{border:0;background:var(--greySoft);color:var(--ink);width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;flex:0 0 auto}
+#toast{position:fixed;bottom:calc(90px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(200px);background:#1f2d2b;color:#fff;padding:11px 18px;border-radius:14px;z-index:80;transition:.25s;font-size:14px;max-width:90vw}
+#toast.on{transform:translateX(-50%) translateY(0)}
+/* زر الإضافة */
+.fab{position:fixed;left:18px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:40;display:flex;gap:10px}
+.fab button{border:0;border-radius:18px;height:56px;padding:0 18px;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 10px 26px rgba(15,118,110,.35);display:flex;gap:8px;align-items:center}
+.fab .cam{background:var(--pri);color:#fff}.fab .plus{background:var(--card);color:var(--pri);width:56px;padding:0;justify-content:center;font-size:26px}
+[data-theme=dark] .fab .cam{color:#06231f}
+/* جداول وتقارير */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+th{color:var(--muted);font-weight:600;background:var(--card2)}
+.tbl{overflow-x:auto;border-radius:14px;border:1px solid var(--line);background:var(--card)}
+tfoot td{font-weight:700;background:var(--card2)}
+.hbars{display:flex;flex-direction:column;gap:7px}
+.hb{display:grid;grid-template-columns:110px 1fr 90px;gap:8px;align-items:center;font-size:12.5px}
+.hb .tr{height:12px;border-radius:6px;background:var(--greySoft);overflow:hidden}.hb .tr i{display:block;height:100%;background:linear-gradient(90deg,var(--pri2),var(--pri));border-radius:6px}
+.hb .tr i.red{background:linear-gradient(90deg,#fb923c,var(--red))}
+.vbars{display:flex;gap:6px;align-items:flex-end;height:150px;padding-top:10px}
+.vb{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;font-size:10.5px;color:var(--muted)}
+.vb i{width:100%;max-width:34px;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,var(--pri2),var(--pri));min-height:2px}
+.vb b{font-size:10px;color:var(--ink)}
+.rep{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:18px}
+.rhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-bottom:3px solid var(--pri);padding-bottom:10px;margin-bottom:14px}
+.rhead h2{margin:0;font-size:19px}.rhead small{color:var(--muted)}
+.rsum{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px}
+.rsum div{background:var(--card2);border-radius:12px;padding:10px;border:1px solid var(--line)}
+.rsum span{display:block;font-size:12px;color:var(--muted)}.rsum b{font-size:17px}
+.rfoot{margin-top:16px;font-size:11px;color:var(--muted);text-align:center;border-top:1px solid var(--line);padding-top:8px}
+.qbox{border:1.5px dashed var(--pri2);background:var(--priSoft);border-radius:14px;padding:12px;margin-bottom:12px}
+.qbox b{display:block;margin-bottom:6px;color:var(--pri)}
+.opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.opts button{border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
+.opts button img{width:22px;height:22px;border-radius:50%;object-fit:cover}
+.opts button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.prog{height:10px;background:var(--greySoft);border-radius:9px;overflow:hidden;margin:12px 0}.prog i{display:block;height:100%;width:0;background:var(--pri);transition:.3s}
+.spin{display:inline-block;width:18px;height:18px;border:3px solid var(--priSoft);border-top-color:var(--pri);border-radius:50%;animation:sp 1s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+.cal{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.cal .m{background:var(--card);border-radius:16px;box-shadow:var(--sh);padding:12px}
+.cal .m h4{margin:0 0 8px;font-size:15px;display:flex;justify-content:space-between}
+.cal .e{display:flex;gap:8px;align-items:center;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--line);cursor:pointer}
+.cal .e:last-child{border:0}.cal .e .dd{background:var(--s);color:var(--c);border-radius:8px;padding:1px 7px;font-weight:700;font-size:12px;min-width:30px;text-align:center}
+.score{font-size:42px;font-weight:700}
+.printonly{display:none}
+#login{position:fixed;inset:0;z-index:90;background:linear-gradient(140deg,#0f766e,#14a38f 55%,#e9dcc0);display:flex;align-items:center;justify-content:center;padding:20px}
+#login.hidden{display:none}
+.lbox{background:#fff;color:#1f2d2b;border-radius:26px;padding:28px 22px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.18);text-align:center}
+.lbox .logo{margin:0 auto 10px;background:#e3f3ef;width:64px;height:64px;font-size:34px}
+.lbox h2{margin:4px 0 2px;font-size:20px}.lbox p{margin:0 0 18px;color:#6b7a76;font-size:13px}
+.lbox input{margin-bottom:10px;text-align:right;background:#fff;color:#1f2d2b;border-color:#e7e1d4}
+.lbox .btn{width:100%;padding:12px;font-size:15px;color:#fff;background:#0f766e}
+.lerr{color:#c2410c;font-size:13px;min-height:18px;margin-bottom:6px}
+@media print{
+  :root,[data-theme=dark]{--bg:#fff;--card:#fff;--card2:#f6f6f4;--ink:#111;--muted:#555;--line:#ddd;--sh:none}
+  body{background:#fff;padding:0}
+  .top,nav,.fab,#toast,.noprint,.modal{display:none!important}
+  main{padding:0;max-width:none}.rep{box-shadow:none;padding:0}
+  .printonly{display:block}
+  tr,.it{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="row">
+    <div class="brand"><div class="logo">⏳</div><div><h1>متابعة الانتهاءات</h1><p id="bSub">الوثائق والتجديدات والمواعيد</p></div></div>
+    <div class="tops"><button class="ibtn" onclick="toggleTheme()" title="الوضع الليلي">🌓</button><div class="sync" id="sync">⏳ جاري التحميل</div></div>
+  </div>
+</header>
+<nav id="tabs"><div class="tabbar" id="tabbar"></div></nav>
+<main id="main"><div class="empty">جاري تحميل البيانات...</div></main>
+<div class="fab noprint" id="fab"><button class="plus" onclick="addMenu()" title="إضافة">＋</button><button class="cam" onclick="startScan()">📸 صوّر وأضف</button></div>
+<input type="file" id="scanFile" accept="image/*" multiple hidden>
+<input type="file" id="photoFile" accept="image/*" hidden>
+<input type="file" id="restoreFile" accept=".json,application/json" hidden>
+<div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()"><div class="sheet" id="sheet"></div></div>
+<div id="toast"></div>
+<div id="login"><div class="lbox"><div class="logo">⏳</div><h2>متابعة الانتهاءات</h2><p>سجّل دخولك بإيميلك وكلمة المرور</p>
+<form id="lform"><input id="lemail" type="email" autocomplete="username" placeholder="الإيميل" dir="ltr" required>
+<input id="lpass" type="password" autocomplete="current-password" placeholder="كلمة المرور" dir="ltr" required>
+<div class="lerr" id="lerr"></div><button class="btn" type="submit" id="lbtn">دخول</button></form>
+<p style="margin:14px 0 0"><a href="#" id="lreset" style="color:#0f766e;font-size:13px">نسيت كلمة المرور؟</a></p></div></div>
+
+<script>
+/* ================= الأنواع الافتراضية (كلها قابلة للتعديل من الإعدادات) ================= */
+const TYPES={
+  iqama:{l:'إقامة',ic:'🪪',owner:'person',alert:60,period:12,cost:600,fine:{k:'fixed',a:500,rep:1000,grace:3},
+    where:'أبشر أفراد: خدمات المكفولين ← تجديد الإقامة',req:'جواز ساري، تأمين طبي ساري إن لزم، سداد الرسوم والمقابل المالي',kw:['إقامة','اقامة','هوية مقيم','resident identity','iqama','مقيم']},
+  passport:{l:'جواز سفر',ic:'🛂',owner:'person',alert:30,period:60,cost:300,fine:{k:'none'},
+    where:'أبشر (للسعوديين) أو سفارة بلد العامل',tip:'أغلب الدول تشترط صلاحية 6 أشهر على الأقل وقت السفر',kw:['passport','جواز','جواز سفر','passeport','P<']},
+  national_id:{l:'هوية وطنية',ic:'🆔',owner:'person',alert:30,period:120,cost:0,fine:{k:'fixed',a:100,rep:200,grace:0},est:true,
+    where:'أبشر أفراد: الأحوال المدنية ← تجديد الهوية',kw:['الهوية الوطنية','بطاقة الهوية','national id','المملكة العربية السعودية وزارة الداخلية','سجل مدني']},
+  driving_license:{l:'رخصة قيادة',ic:'🚘',owner:'person',alert:30,period:120,cost:400,fine:{k:'perYear',a:100,grace:0},
+    where:'أبشر: المرور ← تجديد رخصة القيادة',req:'فحص طبي إلكتروني، سداد المخالفات',kw:['رخصة قيادة','driving license','driving licence','رخصة خاصة']},
+  istimara:{l:'استمارة (رخصة سير)',ic:'📄',owner:'vehicle',alert:30,period:12,cost:100,fine:{k:'perYear',a:100,grace:0},
+    where:'أبشر: المرور ← تجديد رخصة سير',req:'فحص دوري ساري، تأمين ساري، سداد المخالفات',kw:['رخصة سير','استمارة','vehicle registration','رقم اللوحة','رقم الهيكل','سنة الصنع']},
+  insurance:{l:'تأمين مركبة',ic:'🛡️',owner:'vehicle',alert:21,period:12,cost:1200,fine:{k:'fixed',a:150,grace:0},est:true,
+    where:'شركات التأمين أو مواقع المقارنة المعتمدة',kw:['وثيقة تأمين','تأمين','insurance','policy','ضد الغير','شامل']},
+  inspection:{l:'فحص دوري',ic:'🔧',owner:'vehicle',alert:21,period:12,cost:115,fine:{k:'fixed',a:150,grace:0},est:true,
+    where:'حجز موعد من منصة الفحص الفني الدوري',kw:['الفحص الفني','فحص دوري','periodic inspection','MVPI','شهادة فحص']},
+  bank_card:{l:'بطاقة بنكية',ic:'💳',owner:'person',alert:14,period:60,cost:0,fine:{k:'none'},noImg:true,
+    where:'تطبيق البنك أو الفرع',tip:'بطاقة جديدة تعني تحديث بيانات الدفع في الاشتراكات والمحافظ',kw:['mada','مدى','visa','mastercard','valid thru','good thru','debit','credit']},
+  work_permit:{l:'رخصة عمل',ic:'💼',owner:'person',alert:60,period:12,cost:0,fine:{k:'none'},where:'مساند أو قوى',kw:['رخصة عمل','work permit']},
+  medical_ins:{l:'تأمين طبي',ic:'🏥',owner:'person',alert:30,period:12,cost:0,fine:{k:'none'},kw:['تأمين طبي','health insurance','medical']},
+  exit_reentry:{l:'تأشيرة خروج وعودة',ic:'✈️',owner:'person',alert:14,period:3,cost:200,fine:{k:'none'},tip:'إذا ما رجع العامل قبل انتهائها يُمنع من العودة فترة',kw:['خروج وعودة','exit re-entry','exit/re-entry']},
+  driver_auth:{l:'تفويض قيادة',ic:'🔑',owner:'vehicle',alert:14,period:12,cost:0,fine:{k:'none'},where:'أبشر: المرور ← إدارة تفويض القيادة',kw:['تفويض']},
+  umrah:{l:'عمرة',ic:'🕋',owner:'person',periodic:true,interval:24,alert:60,cost:1500,fine:{k:'none'},kw:[]},
+  hajj:{l:'حج',ic:'🕋',owner:'person',periodic:true,interval:120,alert:180,cost:8000,fine:{k:'none'},kw:[]},
+  subscription:{l:'اشتراك / تجديد دوري',ic:'🔁',owner:'none',alert:14,period:12,cost:0,fine:{k:'none'},kw:['subscription','اشتراك']},
+  other:{l:'أخرى',ic:'📌',owner:'any',alert:30,period:12,cost:0,fine:{k:'none'},kw:[]}
+};
+const TYPE_ORDER=Object.keys(TYPES);
+const FINE_K={none:'بدون غرامة',fixed:'مبلغ ثابت بعد المهلة',perYear:'عن كل سنة تأخير',perMonth:'عن كل شهر تأخير',perDay:'عن كل يوم تأخير'};
+const REL={self:{l:'أنا',ic:'🙋‍♂️'},family:{l:'الأسرة',ic:'👨‍👩‍👧'},worker:{l:'العمالة',ic:'👷'},other:{l:'أخرى',ic:'👤'}};
+const STL={expired:'منتهي',soon:'قريب الانتهاء',ok:'ساري',renewing:'قيد التجديد',nodate:'بدون تاريخ',arch:'مؤرشف'};
+const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const TABS=[['home','الرئيسية','🏠'],['items','المتابعات','⏱️'],['people','الأشخاص','👥'],['cars','السيارات','🚗'],['cal','التقويم','🗓️'],['rep','التقارير','📊'],['set','الإعدادات','⚙️']];
+const COLS=['items','people','vehicles','history','settings'];
+
+/* ================= الحالة ================= */
+const S={items:{},people:{},vehicles:{},history:{},settings:{}};
+let base=null,fbUser=null,unsubs=[],tab='home',loaded=false;
+let F={st:'active',kind:'all',type:'all',q:'',sort:'near'};
+let repType='summary',repDays=90,repOwner='',repYear=new Date().getFullYear();
+const IMG={};let scan=null;
+
+/* ================= أدوات ================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r2=n=>Math.round((+n||0)*100)/100;
+const nf=n=>r2(n).toLocaleString('en-US',{maximumFractionDigits:2});
+const money=n=>nf(n)+' ر.س';
+const pd=s=>{if(!s)return null;const[y,m,d]=String(s).split('-').map(Number);return new Date(y,(m||1)-1,d||1)};
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const today=()=>iso(new Date());
+const addMonths=(d,n)=>{const r=new Date(d.getFullYear(),d.getMonth()+n,1);const last=new Date(r.getFullYear(),r.getMonth()+1,0).getDate();r.setDate(Math.min(d.getDate(),last));return r};
+const addDays=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r};
+const fd=s=>{if(!s)return '-';const d=pd(s);return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()};
+const dBetween=(a,b)=>Math.round((pd(b)-pd(a))/864e5);
+const sum=(a,f=x=>x)=>a.reduce((s,x)=>s+(+f(x)||0),0);
+const clean=o=>{const r={...o};delete r._id;return r};
+const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const v=id=>{const e=document.getElementById(id);return e?e.value.trim():''};
+const toEn=s=>String(s??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800)}
+const ST=()=>S.settings.main||{};
+const ownerName=()=>ST().ownerName||'محمد نبي الهاجري';
+
+/* ----- الهجري ----- */
+const HF=(()=>{try{return new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn',{day:'numeric',month:'numeric',year:'numeric'})}catch(e){return null}})();
+function g2hParts(d){if(!HF)return null;const p={};HF.formatToParts(d).forEach(x=>{if(x.type==='year')p.y=parseInt(x.value);if(x.type==='month')p.m=parseInt(x.value);if(x.type==='day')p.d=parseInt(x.value)});return p}
+const hij=s=>{try{return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn',{day:'numeric',month:'long',year:'numeric'}).format(pd(s))}catch(e){return ''}};
+const hijS=s=>{const p=s&&g2hParts(pd(s));return p?`${String(p.d).padStart(2,'0')}/${String(p.m).padStart(2,'0')}/${p.y}هـ`:''};
+function h2g(y,m,d){ // تحويل هجري (أم القرى) إلى ميلادي
+  y=+y;m=+m;d=+d;if(!HF||!y||!m||!d)return null;
+  const approx=new Date(622,6,16);approx.setDate(approx.getDate()+Math.round((y-1)*354.367+(m-1)*29.5306+d-1));
+  for(let k=-25;k<=25;k++){const t=addDays(approx,k);const p=g2hParts(t);if(p.y===y&&p.m===m&&p.d===d)return iso(t)}
+  if(d===30)return h2g(y,m,29);return null}
+function parseHijriText(t){const m=toEn(t).match(/(\d{1,4})\D+(\d{1,2})\D+(\d{1,4})/);if(!m)return null;let a=+m[1],b=+m[2],c=+m[3];
+  if(a>1300)return h2g(a,b,c);if(c>1300)return h2g(c,b,a);return null}
+
+/* ================= قاعدة البيانات ================= */
+function ref(path){const[c,id]=path.split('/');return base.collection(c).doc(id)}
+async function dbSet(path,data){if(!base){toast('سجّل الدخول أولاً');throw new Error('nodb')}
+  try{await ref(path).set(JSON.parse(JSON.stringify(data)))}catch(e){toast('تعذر الحفظ: '+(e.code||e.message||'خطأ'));throw e}}
+async function dbDel(path){if(!base)return;try{await ref(path).delete()}catch(e){toast('تعذر الحذف');throw e}}
+async function imgPut(data){const id=uid('im');await base.collection('images').doc(id).set({data,at:Date.now()});IMG[id]=data;return id}
+async function imgGet(id){if(IMG[id])return IMG[id];try{const d=await base.collection('images').doc(id).get();IMG[id]=d.exists?d.data().data:'';return IMG[id]}catch(e){return ''}}
+async function imgDel(id){try{await base.collection('images').doc(id).delete()}catch(e){}delete IMG[id]}
+
+let rq=0;function schedule_render(){cancelAnimationFrame(rq);rq=requestAnimationFrame(render)}
+
+const fb=firebase.initializeApp(window.FIREBASE_CONFIG);
+const auth=firebase.auth();const fs=firebase.firestore();
+try{fs.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+const AUTH_ERR={'auth/invalid-credential':'الإيميل أو كلمة المرور غير صحيحة','auth/wrong-password':'كلمة المرور غير صحيحة','auth/user-not-found':'الإيميل غير مسجل','auth/invalid-email':'صيغة الإيميل غير صحيحة','auth/too-many-requests':'محاولات كثيرة، انتظر قليلاً وحاول مرة ثانية','auth/network-request-failed':'تأكد من اتصال الإنترنت'};
+$('#lform').addEventListener('submit',async e=>{e.preventDefault();$('#lerr').textContent='';$('#lbtn').disabled=true;$('#lbtn').textContent='جاري الدخول...';
+  try{await auth.signInWithEmailAndPassword(v('lemail'),$('#lpass').value)}catch(err){$('#lerr').textContent=AUTH_ERR[err.code]||('تعذر الدخول: '+err.code)}
+  $('#lbtn').disabled=false;$('#lbtn').textContent='دخول'});
+$('#lreset').addEventListener('click',async e=>{e.preventDefault();const em=v('lemail');if(!em){$('#lerr').textContent='اكتب إيميلك أولاً';return}
+  try{await auth.sendPasswordResetEmail(em);$('#lerr').style.color='#15803d';$('#lerr').textContent='أرسلنا رابط تغيير كلمة المرور على إيميلك'}catch(err){$('#lerr').textContent=AUTH_ERR[err.code]||err.code}});
+async function logout(){if(await ask('تسجيل الخروج من هذا الجهاز؟','خروج'))auth.signOut()}
+auth.onAuthStateChanged(u=>{
+  fbUser=u;unsubs.forEach(f=>f());unsubs=[];
+  if(!u){base=null;COLS.forEach(c=>S[c]={});$('#login').classList.remove('hidden');$('#sync').textContent='🔒 غير مسجل';return}
+  $('#login').classList.add('hidden');$('#sync').textContent='⏳ جاري التحميل';
+  base=fs.collection('apps').doc('renewals');
+  const ok=new Set();
+  const timer=setTimeout(()=>{if(ok.size<COLS.length)$('#sync').textContent='⚠️ بدون اتصال، يعرض آخر نسخة'},10000);
+  COLS.forEach(c=>{unsubs.push(base.collection(c).onSnapshot({includeMetadataChanges:true},snap=>{
+      S[c]=Object.fromEntries(snap.docs.map(d=>[d.id,{...d.data(),_id:d.id}]));
+      if(!snap.metadata.fromCache)ok.add(c);
+      if(ok.size===COLS.length){clearTimeout(timer);$('#sync').textContent=snap.metadata.hasPendingWrites?'⏳ جاري الحفظ':'✅ متزامن';if(!loaded){loaded=true;setTimeout(dailyNotify,1500)}}
+      applyTheme();schedule_render();
+    },err=>{clearTimeout(timer);$('#sync').textContent=err.code==='permission-denied'?'⛔ هذا الحساب ليس له صلاحية':'⚠️ خطأ في الاتصال';schedule_render()}))});
+});
+
+/* ================= منطق المتابعة ================= */
+function T(k){const b=TYPES[k]||TYPES.other;const o=(ST().types||{})[k]||{};return {...b,...o,fine:{...b.fine,...(o.fine||{})}}}
+const tLabel=it=>it.type==='other'||it.type==='subscription'?(it.title||T(it.type).l):T(it.type).l;
+function dueDate(it){
+  if(T(it.type).periodic){if(!it.lastDone)return null;return iso(addMonths(pd(it.lastDone),+(it.interval||T(it.type).interval)))}
+  return it.expiry||null}
+function daysLeft(it){const d=dueDate(it);return d?dBetween(today(),d):null}
+const alertOf=it=>+(it.alert!=null&&it.alert!==''?it.alert:T(it.type).alert);
+function status(it){
+  if(it.state==='archived')return 'arch';
+  const dl=daysLeft(it);if(dl==null)return 'nodate';
+  if(it.state==='renewing')return 'renewing';
+  if(dl<0)return 'expired';if(dl<=alertOf(it))return 'soon';return 'ok'}
+function fineRule(it){const f={...T(it.type).fine};if(it.fineA!=null&&it.fineA!==''){f.a=+it.fineA;if(f.k==='none')f.k='fixed'}return f}
+function fineAt(it,asOf){ // الغرامة المتراكمة حتى تاريخ معين لو ما تجدد
+  const d=dueDate(it);if(!d||T(it.type).periodic||it.state==='archived')return 0;
+  const f=fineRule(it);if(!f||f.k==='none')return 0;
+  const late=dBetween(d,asOf||today());if(late<=(+f.grace||0))return 0;
+  const a=+(it.repeat&&f.rep?f.rep:f.a)||0;
+  let r={fixed:a,perYear:Math.ceil(late/365)*a,perMonth:Math.ceil(late/30)*a,perDay:late*a}[f.k]||0;
+  if(f.max)r=Math.min(r,+f.max);return r}
+const costOf=it=>+(it.cost!=null&&it.cost!==''?it.cost:T(it.type).cost)||0;
+const periodOf=it=>+(it.period||T(it.type).period||12);
+function ownerOf(it){if(it.ownerKind==='person')return S.people[it.ownerId];if(it.ownerKind==='vehicle')return S.vehicles[it.ownerId];return null}
+function ownerLabel(it){const o=ownerOf(it);if(!o)return it.ownerKind==='none'?'عام':'غير محدد';return it.ownerKind==='vehicle'?vName(o):o.name}
+const vName=c=>[c.name||[c.make,c.model].filter(Boolean).join(' ')||'سيارة',c.plate?('('+c.plate+')'):''].join(' ').trim();
+function ownerKindKey(it){if(it.ownerKind==='vehicle')return 'car';const o=ownerOf(it);return o?o.rel||'other':'none'}
+const activeItems=()=>Object.values(S.items).filter(i=>i.state!=='archived');
+function countdownParts(days){const a=Math.abs(days);const y=Math.floor(a/365),m=Math.floor((a%365)/30),d=a%365%30;return{y,m,d}}
+function humanDays(dl){if(dl==null)return 'بدون تاريخ';if(dl===0)return 'ينتهي اليوم';
+  const p=countdownParts(dl);const s=[p.y?p.y+' سنة':'',p.m?p.m+' شهر':'',p.d?p.d+' يوم':''].filter(Boolean).join(' و ');
+  return dl<0?'منتهي منذ '+s:'باقي '+s}
+function pctUsed(it){const d=dueDate(it);if(!d)return 0;
+  let start=it.issue||(T(it.type).periodic?it.lastDone:null);if(!start)start=iso(addMonths(pd(d),-periodOf(it)));
+  const tot=dBetween(start,d)||1;return Math.max(0,Math.min(100,Math.round(dBetween(start,today())/tot*100)))}
+function avatarHTML(it,size){const o=ownerOf(it);const t=T(it.type);
+  const ph=o&&o.photo?`<img src="${o.photo}" alt="">`:(it.ownerKind==='vehicle'?'🚗':(o?(REL[o.rel]||REL.other).ic:t.ic));
+  return `<div class="av"${size?` style="width:${size}px;height:${size}px"`:''}>${ph}${o&&o.photo||it.ownerKind==='vehicle'||o?`<span class="tb">${t.ic}</span>`:''}</div>`}
+function itemCard(it){const st=status(it),dl=daysLeft(it),fine=fineAt(it);
+  const big=dl==null?'؟':Math.abs(dl);const unit=dl==null?'بدون تاريخ':dl<0?'يوم تأخير':dl===0?'اليوم':'يوم باقي';
+  const sub=[it.number?'<span class="num">'+esc(maskNum(it))+'</span>':'',dueDate(it)?fd(dueDate(it))+' · '+hijS(dueDate(it)):''].filter(Boolean).join(' · ');
+  return `<div class="it st-${st}" onclick="openItem('${it._id}')">${avatarHTML(it)}
+  <div class="mid"><b>${t_ic(it)} ${esc(tLabel(it))} · ${esc(ownerLabel(it))}</b><small>${sub||'&nbsp;'}</small>
+  <small>${st==='expired'&&fine?`<span class="chip st-expired">غرامة متوقعة ${money(fine)}</span> `:''}${st==='renewing'?'<span class="chip st-renewing">قيد التجديد</span> ':''}${esc(humanDays(dl))}</small>
+  <div class="bar"><i style="width:${pctUsed(it)}%"></i></div></div>
+  <div class="cd"><div class="d">${big}</div><small>${unit}</small></div></div>`}
+const t_ic=it=>T(it.type).ic;
+function maskNum(it){const n=String(it.number||'');if(it.type==='bank_card')return '•••• '+n.slice(-4);return n}
+function sortItems(a,mode){const key={
+  near:i=>{const d=daysLeft(i);return d==null?1e9:d},
+  type:i=>TYPE_ORDER.indexOf(i.type)*1e6+(daysLeft(i)??1e5),
+  owner:i=>ownerLabel(i),
+  cost:i=>-(costOf(i)+fineAt(i))}[mode]||(i=>0);
+  return a.slice().sort((x,y)=>{const p=key(x),q=key(y);return typeof p==='string'?p.localeCompare(q,'ar'):p-q})}
+
+/* ================= العرض ================= */
+function render(){
+  if(!fbUser)return;
+  $('#tabbar').innerHTML=TABS.map(([k,l,i])=>`<button class="tab ${tab===k?'on':''}" onclick="go('${k}')">${i} ${l}</button>`).join('');
+  const f={home:vHome,items:vItems,people:vPeople,cars:vCars,cal:vCal,rep:vRep,set:vSet}[tab];
+  $('#main').innerHTML=f();
+  const n=activeItems().filter(i=>['expired','soon'].includes(status(i))).length;
+  $('#bSub').textContent=n?`${n} تحتاج انتباهك`:'كل شي تحت السيطرة ✓';
+}
+function go(t){tab=t;render();window.scrollTo({top:0,behavior:'smooth'})}
+function kpi(i,l,val,c,click){return`<div class="kpi ${click?'clk':''}" style="--c:var(--${c})" ${click?`onclick="${click}"`:''}><div class="i">${i}</div><div class="l">${l}</div><div class="v">${val}</div></div>`}
+
+function stats(){const A=activeItems();const by={expired:[],soon:[],ok:[],renewing:[],nodate:[]};A.forEach(i=>(by[status(i)]||by.nodate).push(i));
+  const dated=A.filter(i=>daysLeft(i)!=null);const score=dated.length?Math.round(dated.filter(i=>status(i)!=='expired').length/dated.length*100):100;
+  const fines=sum(by.expired,fineAt);
+  const within=(n)=>A.filter(i=>{const d=daysLeft(i);return d!=null&&d<=n});
+  return{A,by,score,fines,c90:sum(within(90),costOf),c365:sum(within(365),costOf)}}
+
+/* ---------- الرئیسية ---------- */
+function vHome(){const s=stats();
+  if(!s.A.length&&!Object.keys(S.people).length)return welcome();
+  const near=sortItems(s.A.filter(i=>daysLeft(i)!=null),'near');const h=near[0];
+  const urgent=near.filter(i=>['expired','soon','renewing'].includes(status(i)));
+  return `${h?hero(h):''}
+  <h2 class="sec">📌 نظرة سريعة</h2>
+  <div class="kpis">
+   ${kpi('🛡️','نسبة الالتزام',s.score+'%',s.score>=90?'green':s.score>=70?'amber':'red',"repType='summary';go('rep')")}
+   ${kpi('⛔','منتهية',s.by.expired.length,'red',"F.st='expired';go('items')")}
+   ${kpi('⚠️','قريبة الانتهاء',s.by.soon.length,'amber',"F.st='soon';go('items')")}
+   ${kpi('✅','سارية',s.by.ok.length,'green',"F.st='ok';go('items')")}
+   ${kpi('💸','غرامات متراكمة الآن',money(s.fines),'red',"repType='late';go('rep')")}
+   ${kpi('🧾','تكاليف 90 يوم',money(s.c90),'blue',"repType='upcoming';repDays=90;go('rep')")}
+   ${kpi('📅','تكاليف 12 شهر',money(s.c365),'purple',"repType='costs';go('rep')")}
+  </div>
+  ${assistantHTML()}
+  <h2 class="sec">⏰ تحتاج انتباهك <span class="small muted">${urgent.length}</span></h2>
+  ${urgent.length?urgent.map(itemCard).join(''):'<div class="card empty">ما فيه شي قريب الانتهاء 👌</div>'}
+  ${near.filter(i=>status(i)==='ok').length?`<h2 class="sec">🗓️ القادم بعدها</h2>${near.filter(i=>status(i)==='ok').slice(0,5).map(itemCard).join('')}<div class="btns"><button class="btn sec2" onclick="F.st='active';go('items')">عرض الكل</button></div>`:''}`}
+function welcome(){return `<div class="card" style="text-align:center;padding:30px 18px"><div style="font-size:54px">⏳</div><h2 style="margin:6px 0">أهلاً ${esc(ownerName().split(' ')[0])}</h2>
+  <p class="muted">هنا تتابع كل شي له تاريخ انتهاء: الإقامات والجوازات والاستمارات والتأمين والفحص والبطاقات، وحتى العمرة والحج. وينبهك قبلها بالمدة اللي تختارها ويحسب لك الغرامات لو تأخرت.</p>
+  <div class="btns" style="justify-content:center"><button class="btn" onclick="editPerson(null,{rel:'self',name:ownerName()})">🙋‍♂️ ابدأ بإضافة نفسك</button><button class="btn sec2" onclick="startScan()">📸 صوّر أول مستند</button></div>
+  <p class="small muted" style="margin-top:14px">صوّر أي مستند، والبرنامج يقرأه ويصنفه ويسألك لو احتاج شي.</p></div>`}
+function hero(it){const dl=daysLeft(it),st=status(it);const p=countdownParts(dl);const pct=dl<0?100:pctUsed(it);
+  const C=2*Math.PI*56;const off=C*(1-pct/100);const o=ownerOf(it);
+  return `<div class="hero st-${st}" onclick="openItem('${it._id}')">
+   <div class="ring"><svg viewBox="0 0 132 132"><circle cx="66" cy="66" r="56" fill="none" stroke="var(--greySoft)" stroke-width="12"/><circle cx="66" cy="66" r="56" fill="none" stroke="var(--c)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"/></svg>
+    <div class="in"><div><b>${Math.abs(dl)}</b><small>${dl<0?'يوم تأخير':dl===0?'ينتهي اليوم':'يوم'}</small></div></div></div>
+   <div><div class="small muted">${dl<0?'⛔ الأقدم انتهاءً':'⏳ الأقرب للانتهاء'}</div><h3>${t_ic(it)} ${esc(tLabel(it))} · ${esc(ownerLabel(it))}</h3>
+   <div class="bd">${fd(dueDate(it))} · ${esc(hij(dueDate(it)))}${dl<0&&fineAt(it)?` · <b style="color:var(--red)">غرامة ${money(fineAt(it))}</b>`:''}</div>
+   <div class="clock">${p.y?`<div><b>${p.y}</b><span>سنة</span></div>`:''}<div><b>${p.m}</b><span>شهر</span></div><div><b>${p.d}</b><span>يوم</span></div><div><b>${costOf(it)?nf(costOf(it)):'-'}</b><span>تكلفة التجديد</span></div></div></div></div>`}
+
+/* ---------- المساعد الذكي: أسئلة وملاحظات ---------- */
+function insights(){const out=[];const P=Object.values(S.people),V=Object.values(S.vehicles),A=activeItems();
+  const has=(kind,id,type)=>A.some(i=>i.ownerKind===kind&&i.ownerId===id&&i.type===type);
+  const self=P.find(p=>p.rel==='self');
+  if(!self)out.push({c:'blue',ic:'🙋‍♂️',t:'ما أضفت نفسك للحين',s:'أضف نفسك عشان نربط جوازك وهويتك ورخصتك وعمرتك فيك',a:`editPerson(null,{rel:'self',name:ownerName()})`,b:'إضافة'});
+  P.filter(p=>p.rel==='worker').forEach(p=>{
+    if(!has('person',p._id,'iqama'))out.push({c:'amber',ic:'🪪',t:`ما سجلت إقامة ${p.name}`,s:'الإقامة أهم شي للعمالة، غرامة تأخيرها تبدأ من 500 ريال',a:`quickAdd('iqama','person','${p._id}')`,b:'إضافة'});
+    if(!has('person',p._id,'passport'))out.push({c:'blue',ic:'🛂',t:`جواز ${p.name} غير مسجل`,s:'تجديد الإقامة يحتاج جواز ساري',a:`quickAdd('passport','person','${p._id}')`,b:'إضافة'})});
+  V.forEach(c=>{['istimara','insurance','inspection'].forEach(t=>{if(!has('vehicle',c._id,t))out.push({c:'amber',ic:TYPES[t].ic,t:`${TYPES[t].l} ${vName(c)} غير مسجل`,s:'سجله عشان ننبهك قبل انتهائه',a:`quickAdd('${t}','vehicle','${c._id}')`,b:'إضافة'})});
+    const ist=A.find(i=>i.ownerKind==='vehicle'&&i.ownerId===c._id&&i.type==='istimara'&&dueDate(i));
+    ['insurance','inspection'].forEach(t=>{const x=A.find(i=>i.ownerKind==='vehicle'&&i.ownerId===c._id&&i.type===t&&dueDate(i));
+      if(ist&&x&&daysLeft(ist)<=60&&dueDate(x)<dueDate(ist))out.push({c:'purple',ic:'🔗',t:`انتبه: ${TYPES[t].l} ${vName(c)} ينتهي قبل الاستمارة`,s:`تجديد الاستمارة يحتاج ${TYPES[t].l} ساري، جدده أول (${fd(dueDate(x))})`,a:`openItem('${x._id}')`,b:'عرض'})})});
+  if(self&&!has('person',self._id,'umrah'))out.push({c:'purple',ic:'🕋',t:'متى آخر عمرة لك؟',s:'سجلها ويذكرك البرنامج قبل ما تعدي سنتين',a:`quickAdd('umrah','person','${self._id}')`,b:'سجّل'});
+  if(self&&!has('person',self._id,'hajj'))out.push({c:'purple',ic:'🕋',t:'متى آخر حجة لك؟',s:'سجلها ويذكرك قبل موعد الحج القادم بفترة كافية للتسجيل',a:`quickAdd('hajj','person','${self._id}')`,b:'سجّل'});
+  A.filter(i=>i.type==='passport'&&daysLeft(i)!=null&&daysLeft(i)>=0&&daysLeft(i)<183).forEach(i=>out.push({c:'blue',ic:'✈️',t:`جواز ${ownerLabel(i)} صلاحيته أقل من 6 أشهر`,s:'أغلب الدول ترفض الدخول بجواز صلاحيته أقل من 6 أشهر',a:`openItem('${i._id}')`,b:'عرض'}));
+  A.filter(i=>i.type==='iqama').forEach(i=>{const pp=A.find(x=>x.type==='passport'&&x.ownerId===i.ownerId&&dueDate(x));if(pp&&dueDate(i)&&dueDate(pp)<iso(addMonths(pd(dueDate(i)),periodOf(i))))out.push({c:'amber',ic:'🔗',t:`جواز ${ownerLabel(i)} ينتهي قبل نهاية الإقامة القادمة`,s:'جدد الجواز أول عشان ما يتعطل تجديد الإقامة',a:`openItem('${pp._id}')`,b:'عرض'})});
+  const noDate=A.filter(i=>!dueDate(i));if(noDate.length)out.push({c:'red',ic:'❓',t:`${noDate.length} متابعة بدون تاريخ`,s:noDate.slice(0,3).map(i=>tLabel(i)+' '+ownerLabel(i)).join('، '),a:`openItem('${noDate[0]._id}')`,b:'أكمل'});
+  const noCost=A.filter(i=>!costOf(i)&&!['bank_card','passport','work_permit','medical_ins','driver_auth'].includes(i.type));if(noCost.length)out.push({c:'grey',ic:'💰',t:`${noCost.length} متابعة بدون تكلفة تجديد`,s:'أضف التكلفة عشان تطلع تقارير المصاريف دقيقة',a:`openItem('${noCost[0]._id}')`,b:'أكمل'});
+  if(!ST().notifyAsked&&'Notification' in window&&Notification.permission==='default')out.push({c:'blue',ic:'🔔',t:'فعّل التنبيهات على هذا الجهاز',s:'وأضف المواعيد لتقويم جوالك عشان يجيك تنبيه حتى لو البرنامج مقفل',a:`go('set')`,b:'الإعدادات'});
+  return out}
+function assistantHTML(){const a=insights();if(!a.length)return '';const show=a.slice(0,6);
+  return `<h2 class="sec">🤖 المساعد يسألك وينبهك <span class="small muted">${a.length}</span></h2>${show.map(x=>`<div class="asst" style="--c:var(--${x.c})"><div class="ic">${x.ic}</div><div class="tx"><b>${esc(x.t)}</b><small>${esc(x.s)}</small></div><button class="btn sm sec2" onclick="${x.a}">${x.b}</button></div>`).join('')}${a.length>6?`<p class="small muted">و ${a.length-6} ملاحظات ثانية</p>`:''}`}
+
+/* ---------- المتابعات ---------- */
+function vItems(){
+  let A=Object.values(S.items);
+  if(F.st==='active')A=A.filter(i=>i.state!=='archived');else A=A.filter(i=>status(i)===F.st);
+  if(F.kind!=='all')A=A.filter(i=>ownerKindKey(i)===F.kind);
+  if(F.type!=='all')A=A.filter(i=>i.type===F.type);
+  if(F.q){const q=norm(F.q);A=A.filter(i=>norm([tLabel(i),ownerLabel(i),i.number,i.notes,i.provider].join(' ')).includes(q))}
+  A=sortItems(A,F.sort);
+  const segs=[['active','الكل'],['expired','⛔ منتهي'],['soon','⚠️ قريب'],['ok','✅ ساري'],['renewing','🔄 قيد التجديد'],['nodate','❓ بدون تاريخ'],['arch','🗄️ الأرشيف']];
+  let list='';
+  if(F.sort==='type'||F.sort==='owner'){const g={};A.forEach(i=>{const k=F.sort==='type'?tLabel(i):ownerLabel(i);(g[k]=g[k]||[]).push(i)});
+    list=Object.entries(g).map(([k,a])=>`<div class="ghead">${F.sort==='type'?t_ic(a[0]):'👤'} ${esc(k)} <span class="chip st-info">${a.length}</span></div>${a.map(itemCard).join('')}`).join('')}
+  else list=A.map(itemCard).join('');
+  return `<div class="seg">${segs.map(([k,l])=>`<button class="${F.st===k?'on':''}" onclick="F.st='${k}';render()">${l}</button>`).join('')}</div>
+  <div class="filters">
+   <input id="fq" placeholder="🔍 بحث بالاسم أو الرقم" value="${esc(F.q)}" oninput="F.q=this.value;clearTimeout(window._q);window._q=setTimeout(()=>{render();const e=$('#fq');e.focus();e.setSelectionRange(e.value.length,e.value.length)},350)">
+   <select onchange="F.sort=this.value;render()"><option value="near" ${F.sort==='near'?'selected':''}>↕️ الأقرب انتهاءً</option><option value="type" ${F.sort==='type'?'selected':''}>↕️ حسب النوع</option><option value="owner" ${F.sort==='owner'?'selected':''}>↕️ حسب الشخص/السيارة</option><option value="cost" ${F.sort==='cost'?'selected':''}>↕️ الأعلى تكلفة</option></select>
+   <select onchange="F.kind=this.value;render()"><option value="all">كل الفئات</option>${Object.entries(REL).map(([k,r])=>`<option value="${k}" ${F.kind===k?'selected':''}>${r.ic} ${r.l}</option>`).join('')}<option value="car" ${F.kind==='car'?'selected':''}>🚗 السيارات</option><option value="none" ${F.kind==='none'?'selected':''}>📌 عام</option></select>
+   <select onchange="F.type=this.value;render()"><option value="all">كل الأنواع</option>${TYPE_ORDER.map(k=>`<option value="${k}" ${F.type===k?'selected':''}>${TYPES[k].ic} ${T(k).l}</option>`).join('')}</select>
+  </div>
+  <p class="small muted">${A.length} متابعة</p>
+  ${list||'<div class="card empty">لا توجد نتائج</div>'}`}
+const norm=s=>String(s||'').toLowerCase().replace(/[\u064B-\u0652\u0640]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي');
+
+/* ---------- الأشخاص ---------- */
+function personItems(id){return activeItems().filter(i=>i.ownerKind==='person'&&i.ownerId===id)}
+function worst(items){const order={expired:0,soon:1,renewing:2,nodate:3,ok:4};return items.slice().sort((a,b)=>(order[status(a)]-order[status(b)])||((daysLeft(a)??1e9)-(daysLeft(b)??1e9)))[0]}
+function vPeople(){const P=Object.values(S.people).sort((a,b)=>Object.keys(REL).indexOf(a.rel)-Object.keys(REL).indexOf(b.rel)||String(a.name).localeCompare(b.name,'ar'));
+  const groups=Object.keys(REL).map(k=>[k,P.filter(p=>(p.rel||'other')===k)]).filter(g=>g[1].length);
+  return `<div class="btns" style="margin-top:0;margin-bottom:6px"><button class="btn" onclick="editPerson()">➕ إضافة شخص</button></div>
+  ${groups.length?groups.map(([k,a])=>`<div class="ghead">${REL[k].ic} ${REL[k].l} <span class="chip st-info">${a.length}</span></div><div class="grid g3">${a.map(p=>{const it=personItems(p._id);const w=worst(it);
+    return `<div class="pc" onclick="openPerson('${p._id}')"><div class="ph">${p.photo?`<img src="${p.photo}" alt="">`:REL[p.rel||'other'].ic}</div><div style="min-width:0"><b>${esc(p.name)}</b><small>${esc([p.relation,p.nationality].filter(Boolean).join(' · ')||REL[p.rel||'other'].l)} · ${it.length} متابعة</small>${w?`<span class="chip st-${status(w)}" style="margin-top:4px">${t_ic(w)} ${esc(tLabel(w))}: ${daysLeft(w)==null?'بدون تاريخ':daysLeft(w)<0?'منتهي':daysLeft(w)+' يوم'}</span>`:''}</div></div>`}).join('')}</div>`).join(''):'<div class="card empty">ما فيه أشخاص للحين. أضف نفسك وأفراد أسرتك وعمالتك مع صورهم.</div>'}`}
+function openPerson(id){const p=S.people[id];if(!p)return;const it=sortItems(personItems(id),'near');const hist=Object.values(S.history).filter(h=>h.ownerId===id);
+  openModal(`<h3>${REL[p.rel||'other'].ic} ${esc(p.name)}<button class="x" onclick="closeModal()">×</button></h3>
+  ${p.photo?`<img class="big-ph" src="${p.photo}" alt="">`:''}
+  <dl class="kv"><dt>الفئة</dt><dd>${REL[p.rel||'other'].l}${p.relation?' · '+esc(p.relation):''}</dd>${p.nationality?`<dt>الجنسية</dt><dd>${esc(p.nationality)}</dd>`:''}${p.phone?`<dt>الجوال</dt><dd class="num">${esc(p.phone)}</dd>`:''}${p.job?`<dt>المهنة</dt><dd>${esc(p.job)}</dd>`:''}${p.notes?`<dt>ملاحظات</dt><dd>${esc(p.notes)}</dd>`:''}
+  <dt>تكلفة تجديد سنوية تقريبية</dt><dd>${money(sum(it,i=>costOf(i)*12/periodOf(i)))}</dd>${hist.length?`<dt>مصروف فعلي سابق</dt><dd>${money(sum(hist,h=>(+h.cost||0)+(+h.fine||0)))}</dd>`:''}</dl>
+  <h4 style="margin:16px 0 8px">المتابعات (${it.length})</h4>${it.map(itemCard).join('')||'<p class="muted small">ما فيه متابعات</p>'}
+  <div class="btns"><button class="btn" onclick="quickAdd(null,'person','${id}')">➕ إضافة متابعة</button><button class="btn sec2" onclick="startScan({ownerKind:'person',ownerId:'${id}'})">📸 صوّر مستند له</button><button class="btn ghost" onclick="editPerson('${id}')">✏️ تعديل</button><button class="btn ghost" onclick="repType='owner';repOwner='person:${id}';closeModal();go('rep')">🖨️ تقرير</button>${p.phone?`<a class="btn wa" target="_blank" href="${waLink(p.phone,personMsg(p,it))}">واتساب</a>`:''}</div>`)}
+function personMsg(p,it){return `السلام عليكم ${p.name}\nتذكير بمواعيد انتهاء مستنداتك:\n`+it.filter(i=>dueDate(i)).map(i=>`• ${tLabel(i)}: ${fd(dueDate(i))} (${humanDays(daysLeft(i))})`).join('\n')}
+function waLink(phone,text){let x=String(phone||'').replace(/\D/g,'');if(x.startsWith('00'))x=x.slice(2);if(x.startsWith('05'))x='966'+x.slice(1);else if(x.startsWith('5')&&x.length===9)x='966'+x;return 'https://wa.me/'+x+'?text='+encodeURIComponent(text)}
+let tmpPhoto=null;
+function editPerson(id,pre){const p=id?S.people[id]:{rel:'family',...(pre||{})};tmpPhoto=p.photo||null;
+  openModal(`<h3>${id?'تعديل':'إضافة'} شخص<button class="x" onclick="closeModal()">×</button></h3>
+  <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px"><div class="pc" style="padding:0;box-shadow:none;background:none"><div class="ph" id="phPrev" style="width:84px;height:84px">${tmpPhoto?`<img src="${tmpPhoto}">`:'📷'}</div></div><button class="btn sec2" onclick="pickPhoto('phPrev')">📷 صورة الشخص</button></div>
+  <div class="form"><label class="full">الاسم<input id="pName" value="${esc(p.name)}"></label>
+  <label>الفئة<select id="pRel">${Object.entries(REL).map(([k,r])=>`<option value="${k}" ${p.rel===k?'selected':''}>${r.ic} ${r.l}</option>`).join('')}</select></label>
+  <label>صلة القرابة / الوصف<input id="pRelation" value="${esc(p.relation)}" placeholder="زوجة، ابن، سائق، راعي..."></label>
+  <label>الجنسية<input id="pNat" value="${esc(p.nationality)}"></label><label>الجوال<input id="pPhone" dir="ltr" value="${esc(p.phone)}"></label>
+  <label>المهنة<input id="pJob" value="${esc(p.job)}"></label>
+  <label class="full">ملاحظات<textarea id="pNotes" rows="2">${esc(p.notes)}</textarea></label></div>
+  <div class="btns"><button class="btn" onclick="savePerson(${id?`'${id}'`:'null'})">💾 حفظ</button>${id?`<button class="btn warn" onclick="delPerson('${id}')">🗑️ حذف</button>`:''}</div>`)}
+async function savePerson(id){const name=v('pName');if(!name){toast('اكتب الاسم');return}
+  const pid=id||uid('p');const o={...(id?clean(S.people[id]):{createdAt:Date.now()}),name,rel:v('pRel'),relation:v('pRelation'),nationality:v('pNat'),phone:v('pPhone'),job:v('pJob'),notes:v('pNotes'),photo:tmpPhoto||''};
+  await dbSet('people/'+pid,o);toast('تم الحفظ ✓');closeModal();if(pendingOwner){resumePending('person',pid)}else openPersonLater(pid);return pid}
+function openPersonLater(id){setTimeout(()=>{if(S.people[id])openPerson(id)},350)}
+async function delPerson(id){const n=personItems(id).length;if(!await ask(`حذف ${esc(S.people[id].name)}؟${n?` وبتنحذف معه ${n} متابعات.`:''}`,'حذف'))return;
+  for(const i of Object.values(S.items).filter(i=>i.ownerKind==='person'&&i.ownerId===id)){await delItemData(i)}await dbDel('people/'+id);closeModal();toast('تم الحذف')}
+
+/* ---------- السيارات ---------- */
+function carItems(id){return activeItems().filter(i=>i.ownerKind==='vehicle'&&i.ownerId===id)}
+function vCars(){const V=Object.values(S.vehicles);
+  return `<div class="btns" style="margin-top:0;margin-bottom:10px"><button class="btn" onclick="editCar()">➕ إضافة سيارة</button></div>
+  ${V.length?`<div class="grid g2">${V.map(c=>{const it=carItems(c._id);const get=t=>it.find(i=>i.type===t);
+    return `<div class="card" style="cursor:pointer;padding:0;overflow:hidden" onclick="openCar('${c._id}')">${c.photo?`<img src="${c.photo}" style="width:100%;height:150px;object-fit:cover;display:block">`:'<div style="height:90px;display:grid;place-items:center;font-size:48px;background:var(--priSoft)">🚗</div>'}
+    <div style="padding:12px 14px"><b style="font-size:16px">${esc(vName(c))}</b><div class="small muted">${esc([c.year,c.color,c.driverId&&S.people[c.driverId]?'السائق: '+S.people[c.driverId].name:''].filter(Boolean).join(' · '))}</div>
+    <div class="opts" style="margin-top:8px">${['istimara','insurance','inspection','driver_auth'].map(t=>{const x=get(t);if(!x&&t==='driver_auth')return '';return `<span class="chip st-${x?status(x):'nodate'}">${TYPES[t].ic} ${T(t).l.split(' ')[0]}: ${x?(daysLeft(x)==null?'؟':daysLeft(x)<0?'منتهي':daysLeft(x)+' يوم'):'غير مسجل'}</span>`}).join('')}</div></div></div>`}).join('')}</div>`:'<div class="card empty">ما فيه سيارات. أضف سياراتك مع صورها عشان تتابع الاستمارة والتأمين والفحص الدوري.</div>'}`}
+function openCar(id){const c=S.vehicles[id];if(!c)return;const it=sortItems(carItems(id),'near');
+  openModal(`<h3>🚗 ${esc(vName(c))}<button class="x" onclick="closeModal()">×</button></h3>${c.photo?`<img class="big-ph" src="${c.photo}">`:''}
+  <dl class="kv">${c.make?`<dt>الشركة/الطراز</dt><dd>${esc([c.make,c.model].join(' '))}</dd>`:''}${c.year?`<dt>سنة الصنع</dt><dd>${esc(c.year)}</dd>`:''}${c.plate?`<dt>اللوحة</dt><dd>${esc(c.plate)}</dd>`:''}${c.vin?`<dt>رقم الهيكل</dt><dd class="num">${esc(c.vin)}</dd>`:''}${c.serial?`<dt>الرقم التسلسلي</dt><dd class="num">${esc(c.serial)}</dd>`:''}${c.driverId&&S.people[c.driverId]?`<dt>السائق</dt><dd>${esc(S.people[c.driverId].name)}</dd>`:''}
+  <dt>تكلفة سنوية تقريبية</dt><dd>${money(sum(it,i=>costOf(i)*12/periodOf(i)))}</dd></dl>
+  <h4 style="margin:16px 0 8px">المتابعات</h4>${it.map(itemCard).join('')||'<p class="small muted">ما فيه متابعات</p>'}
+  <div class="btns"><button class="btn" onclick="quickAdd(null,'vehicle','${id}')">➕ إضافة متابعة</button><button class="btn sec2" onclick="startScan({ownerKind:'vehicle',ownerId:'${id}'})">📸 صوّر مستند لها</button><button class="btn ghost" onclick="editCar('${id}')">✏️ تعديل</button><button class="btn ghost" onclick="repType='owner';repOwner='vehicle:${id}';closeModal();go('rep')">🖨️ تقرير</button></div>`)}
+function editCar(id,pre){const c=id?S.vehicles[id]:{...(pre||{})};tmpPhoto=c.photo||null;
+  openModal(`<h3>${id?'تعديل':'إضافة'} سيارة<button class="x" onclick="closeModal()">×</button></h3>
+  <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px"><div class="pc" style="padding:0;box-shadow:none;background:none"><div class="ph" id="phPrev" style="width:110px;height:76px">${tmpPhoto?`<img src="${tmpPhoto}">`:'🚗'}</div></div><button class="btn sec2" onclick="pickPhoto('phPrev')">📷 صورة السيارة</button></div>
+  <div class="form"><label>اسم مختصر<input id="cName" value="${esc(c.name)}" placeholder="مثلاً: الجيب، سيارة البيت"></label>
+  <label>الشركة<input id="cMake" value="${esc(c.make)}"></label><label>الطراز<input id="cModel" value="${esc(c.model)}"></label>
+  <label>سنة الصنع<input id="cYear" inputmode="numeric" value="${esc(c.year)}"></label><label>اللون<input id="cColor" value="${esc(c.color)}"></label>
+  <label>رقم اللوحة<input id="cPlate" value="${esc(c.plate)}"></label><label>رقم الهيكل VIN<input id="cVin" dir="ltr" value="${esc(c.vin)}"></label>
+  <label>الرقم التسلسلي<input id="cSerial" dir="ltr" value="${esc(c.serial)}"></label>
+  <label>السائق<select id="cDriver"><option value="">بدون</option>${Object.values(S.people).map(p=>`<option value="${p._id}" ${c.driverId===p._id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>
+  <label class="full">ملاحظات<textarea id="cNotes" rows="2">${esc(c.notes)}</textarea></label></div>
+  <div class="btns"><button class="btn" onclick="saveCar(${id?`'${id}'`:'null'})">💾 حفظ</button>${id?`<button class="btn warn" onclick="delCar('${id}')">🗑️ حذف</button>`:''}</div>`)}
+async function saveCar(id){const cid=id||uid('v');const o={...(id?clean(S.vehicles[id]):{createdAt:Date.now()}),name:v('cName'),make:v('cMake'),model:v('cModel'),year:v('cYear'),color:v('cColor'),plate:v('cPlate'),vin:v('cVin'),serial:v('cSerial'),driverId:v('cDriver'),notes:v('cNotes'),photo:tmpPhoto||''};
+  if(!o.name&&!o.make&&!o.plate){toast('اكتب اسم السيارة أو اللوحة');return}
+  await dbSet('vehicles/'+cid,o);toast('تم الحفظ ✓');closeModal();
+  if(pendingOwner){resumePending('vehicle',cid)}else if(!id)setTimeout(()=>{if(S.vehicles[cid])openCar(cid)},350);return cid}
+async function delCar(id){const n=carItems(id).length;if(!await ask(`حذف السيارة؟${n?` وبتنحذف معها ${n} متابعات.`:''}`,'حذف'))return;
+  for(const i of Object.values(S.items).filter(i=>i.ownerKind==='vehicle'&&i.ownerId===id)){await delItemData(i)}await dbDel('vehicles/'+id);closeModal();toast('تم الحذف')}
+
+/* ---------- الصور ---------- */
+function compress(file,max=1100,q=.72){return new Promise((res,rej)=>{const u=URL.createObjectURL(file);const im=new Image();
+  im.onload=()=>{let w=im.naturalWidth,h=im.naturalHeight;const s=Math.min(1,max/Math.max(w,h));w=Math.round(w*s);h=Math.round(h*s);
+    const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);URL.revokeObjectURL(u);res(c.toDataURL('image/jpeg',q))};
+  im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('img'))};im.src=u})}
+function pickPhoto(prevId){const inp=$('#photoFile');inp.value='';inp.onchange=async()=>{const f=inp.files[0];if(!f)return;try{tmpPhoto=await compress(f,420,.75);const e=document.getElementById(prevId);if(e)e.innerHTML=`<img src="${tmpPhoto}">`}catch(e){toast('تعذر قراءة الصورة')}};inp.click()}
+async function viewImg(id){const d=await imgGet(id);if(!d){toast('الصورة غير متوفرة');return}const w=window.open('');if(w){w.document.write(`<title>صورة</title><body style="margin:0;background:#111;display:grid;place-items:center;min-height:100vh"><img src="${d}" style="max-width:100%;max-height:100vh">`)}else openModal(`<h3>صورة<button class="x" onclick="closeModal()">×</button></h3><img src="${d}" style="width:100%;border-radius:14px">`)}
+
+/* ================= المتابعة: عرض وتعديل ================= */
+function openItem(id){const it=S.items[id];if(!it)return;const t=T(it.type),st=status(it),dl=daysLeft(it),d=dueDate(it);
+  const hist=Object.values(S.history).filter(h=>h.itemId===id).sort((a,b)=>String(b.renewedOn).localeCompare(a.renewedOn));
+  const f=fineRule(it);
+  openModal(`<h3>${t.ic} ${esc(tLabel(it))}<button class="x" onclick="closeModal()">×</button></h3>
+  <div class="hero st-${st}" style="cursor:default;margin-bottom:12px">${avatarHTML(it,72)}<div><b style="font-size:17px">${esc(ownerLabel(it))}</b><div class="bd">${d?fd(d)+' · '+esc(hij(d)):'بدون تاريخ'}</div>
+   <div class="clock">${dl==null?'':`<div><b>${Math.abs(dl)}</b><span>${dl<0?'يوم تأخير':'يوم باقي'}</span></div>`}<div><b style="font-size:14px">${STL[st]}</b><span>الحالة</span></div>${fineAt(it)?`<div><b style="color:var(--red)">${nf(fineAt(it))}</b><span>غرامة الآن</span></div>`:''}</div></div></div>
+  <dl class="kv">${it.number?`<dt>الرقم</dt><dd class="num">${esc(maskNum(it))}</dd>`:''}${it.provider?`<dt>${it.type==='bank_card'?'البنك':'الجهة'}</dt><dd>${esc(it.provider)}</dd>`:''}
+   ${t.periodic?`<dt>آخر مرة</dt><dd>${fd(it.lastDone)}</dd><dt>كل</dt><dd>${+(it.interval||t.interval)} شهر</dd>`:`${it.issue?`<dt>الإصدار</dt><dd>${fd(it.issue)} · ${hijS(it.issue)}</dd>`:''}<dt>الانتهاء</dt><dd>${fd(it.expiry)} · ${hijS(it.expiry)}</dd>`}
+   <dt>التنبيه قبل</dt><dd>${alertOf(it)} يوم${d?' ('+fd(iso(addDays(pd(d),-alertOf(it))))+')':''}</dd>
+   <dt>تكلفة التجديد</dt><dd>${money(costOf(it))}</dd>
+   <dt>الغرامة</dt><dd>${f.k==='none'?'لا يوجد':`${nf(it.repeat&&f.rep?f.rep:f.a)} ر.س ${FINE_K[f.k]}${+f.grace?` (مهلة ${f.grace} أيام)`:''}${t.est&&it.fineA==null?' · تقديرية':''}`}</dd>
+   ${t.where?`<dt>مكان التجديد</dt><dd>${esc(t.where)}</dd>`:''}${t.req?`<dt>المتطلبات</dt><dd>${esc(t.req)}</dd>`:''}${t.tip?`<dt>تنبيه</dt><dd>${esc(t.tip)}</dd>`:''}${it.notes?`<dt>ملاحظات</dt><dd>${esc(it.notes)}</dd>`:''}</dl>
+  ${f.k!=='none'&&d&&!t.periodic?`<div class="card" style="margin-top:12px;background:var(--redSoft)"><b>💸 لو أهملته</b><div class="small" style="margin-top:6px">${[30,90,180,365].map(n=>{const at=iso(addDays(pd(d>today()?d:today()),n));return `بعد ${n} يوم: <b>${money(fineAt(it,at)+costOf(it))}</b> (تجديد + غرامة)`}).join('<br>')}</div></div>`:''}
+  ${(it.imgs||[]).length?`<div class="gallery">${it.imgs.map(x=>`<img data-img="${x}" onclick="viewImg('${x}')" alt="">`).join('')}</div>`:''}
+  <div class="btns"><button class="btn" onclick="renewItem('${id}')">${t.periodic?'✅ سجّل أنك أديتها':'🔄 تم التجديد'}</button>
+   ${!t.periodic&&it.state!=='renewing'?`<button class="btn sec2" onclick="setState('${id}','renewing')">⏳ قيد التجديد</button>`:''}${it.state==='renewing'?`<button class="btn sec2" onclick="setState('${id}','active')">↩️ إلغاء قيد التجديد</button>`:''}
+   <button class="btn ghost" onclick="editItem('${id}')">✏️ تعديل</button><button class="btn ghost" onclick="addImgs('${id}')">📎 إضافة صورة</button><button class="btn ghost" onclick="dlICS(['${id}'])">📅 للتقويم</button>
+   ${it.state==='archived'?`<button class="btn ghost" onclick="setState('${id}','active')">↩️ استرجاع</button>`:`<button class="btn ghost" onclick="setState('${id}','archived')">🗄️ أرشفة</button>`}<button class="btn warn" onclick="delItem('${id}')">🗑️</button></div>
+  ${hist.length?`<h4 style="margin:16px 0 6px">سجل التجديدات</h4><div class="tbl"><table><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>التكلفة</th><th>غرامة</th></tr>${hist.map(h=>`<tr><td>${fd(h.renewedOn)}</td><td>${fd(h.oldDue)}</td><td>${fd(h.newDue)}</td><td>${nf(h.cost)}</td><td>${+h.fine?nf(h.fine):'-'}</td></tr>`).join('')}</table></div>`:''}`);
+  document.querySelectorAll('#sheet img[data-img]').forEach(async im=>{im.src=await imgGet(im.dataset.img)||''})}
+async function setState(id,state){await dbSet('items/'+id,{...clean(S.items[id]),state});toast('تم ✓');closeModal()}
+async function delItemData(it){for(const x of it.imgs||[])await imgDel(x);await dbDel('items/'+it._id)}
+async function delItem(id){if(!await ask('حذف هذه المتابعة نهائياً مع صورها؟ (الأرشفة تحتفظ فيها)','حذف'))return;await delItemData(S.items[id]);closeModal();toast('تم الحذف')}
+function addImgs(id){const inp=$('#scanFile');inp.value='';inp.onchange=async()=>{const it=S.items[id];const ids=[...(it.imgs||[])];
+  for(const f of inp.files){try{ids.push(await imgPut(await compress(f)))}catch(e){toast('تعذر رفع صورة')}}
+  await dbSet('items/'+id,{...clean(S.items[id]),imgs:ids});toast('تمت إضافة الصور ✓');closeModal();setTimeout(()=>openItem(id),300)};inp.click()}
+
+function renewItem(id){const it=S.items[id],t=T(it.type);const d=dueDate(it);
+  const base0=t.periodic?today():(d&&d>today()?d:today());const sug=t.periodic?today():iso(addMonths(pd(d||today()),periodOf(it)));
+  const lateFine=fineAt(it);
+  openModal(`<h3>${t.periodic?'تسجيل أداء ':'تجديد '}${esc(tLabel(it))}<button class="x" onclick="closeModal()">×</button></h3>
+  <p class="small muted">${esc(ownerLabel(it))}${d?' · كان '+fd(d):''}</p>
+  <div class="form">${t.periodic?`<label>تاريخ الأداء<input type="date" id="rNew" value="${today()}"></label>`:`
+   <label>تاريخ الانتهاء الجديد<input type="date" id="rNew" value="${sug}"></label>
+   <label>أو بالهجري<input id="rHij" placeholder="1449/05/20" oninput="const g=parseHijriText(this.value);if(g){$('#rNew').value=g;$('#rHijOut').textContent='= '+fd(g)}"><span class="hint" id="rHijOut"></span></label>
+   <div class="full opts">${[1,2,3,5,10].map(y=>`<button type="button" onclick="$('#rNew').value='${iso(addMonths(pd(d||today()),y*12))}'">+${y} ${y===1?'سنة':y===2?'سنتين':'سنوات'}</button>`).join('')}</div>`}
+   <label>المبلغ المدفوع<input id="rCost" inputmode="decimal" value="${costOf(it)||''}"></label>
+   <label>غرامة مدفوعة<input id="rFine" inputmode="decimal" value="${lateFine||''}"></label>
+   <label class="full">ملاحظة<input id="rNote"></label>
+   <label class="full" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="rImg" style="width:auto"> أبغى أصور المستند الجديد بعد الحفظ</label></div>
+  <div class="btns"><button class="btn" onclick="doRenew('${id}')">💾 حفظ</button></div>`)}
+async function doRenew(id){const it=S.items[id],t=T(it.type);const nd=v('rNew');if(!nd){toast('حدد التاريخ');return}
+  const old=dueDate(it);const late=old&&!t.periodic?Math.max(0,dBetween(old,today())):0;
+  const h={itemId:id,type:it.type,title:tLabel(it),ownerKind:it.ownerKind||'',ownerId:it.ownerId||'',ownerLabel:ownerLabel(it),oldDue:old||'',newDue:t.periodic?iso(addMonths(pd(nd),+(it.interval||t.interval))):nd,renewedOn:t.periodic?nd:today(),cost:+v('rCost')||0,fine:+v('rFine')||0,lateDays:late,note:v('rNote')};
+  await dbSet('history/'+uid('h'),h);
+  const upd={...clean(it),state:'active'};if(t.periodic)upd.lastDone=nd;else{upd.issue=old&&old<today()?today():(old||today());upd.expiry=nd}
+  if(late>(+fineRule(it).grace||0)&&fineRule(it).k!=='none')upd.repeat=true; // المرة القادمة تعتبر تكرار
+  await dbSet('items/'+id,upd);toast('تم التجديد ✓');closeModal();if($('#rImg')&&$('#rImg').checked)addImgs(id)}
+
+function quickAdd(type,ownerKind,ownerId){editItem(null,{type:type||'',ownerKind:ownerKind||'',ownerId:ownerId||''})}
+function addMenu(){openModal(`<h3>إضافة<button class="x" onclick="closeModal()">×</button></h3>
+  <div class="grid g2">
+   <div class="asst" style="--c:var(--pri);cursor:pointer" onclick="startScan()"><div class="ic">📸</div><div class="tx"><b>صوّر مستند</b><small>البرنامج يقرأ الصورة ويعبي البيانات ويسألك لو احتاج</small></div></div>
+   <div class="asst" style="--c:var(--blue);cursor:pointer" onclick="editItem()"><div class="ic">📝</div><div class="tx"><b>متابعة يدوية</b><small>أي شي له تاريخ انتهاء أو موعد دوري</small></div></div>
+   <div class="asst" style="--c:var(--purple);cursor:pointer" onclick="editPerson()"><div class="ic">👤</div><div class="tx"><b>شخص</b><small>أنت، الأسرة، العمالة مع الصور</small></div></div>
+   <div class="asst" style="--c:var(--amber);cursor:pointer" onclick="editCar()"><div class="ic">🚗</div><div class="tx"><b>سيارة</b><small>مع صورتها ولوحتها</small></div></div>
+  </div>`)}
+
+function ownerSelectHTML(kind,id,type){const P=Object.values(S.people),V=Object.values(S.vehicles);const want=type?T(type).owner:'any';
+  const opt=(k,o,l,ph)=>`<button type="button" class="${kind===k&&id===o?'on':''}" onclick="selOwner('${k}','${o}')">${ph?`<img src="${ph}">`:''}${esc(l)}</button>`;
+  return `<div class="opts" id="ownerOpts">${want!=='vehicle'?P.map(p=>opt('person',p._id,p.name,p.photo)).join(''):''}${want!=='person'?V.map(c=>opt('vehicle',c._id,'🚗 '+vName(c),c.photo)).join(''):''}
+   ${want==='none'||want==='any'?opt('none','','📌 عام',''):''}
+   ${want!=='vehicle'?`<button type="button" onclick="newOwnerFromForm('person')">➕ شخص جديد</button>`:''}${want!=='person'?`<button type="button" onclick="newOwnerFromForm('vehicle')">➕ سيارة جديدة</button>`:''}</div>`}
+let formOwner={kind:'',id:''};
+function selOwner(k,id){formOwner={kind:k,id};document.querySelectorAll('#ownerOpts button').forEach(b=>b.classList.remove('on'));event.currentTarget.classList.add('on')}
+
+function editItem(id,pre){const it=id?S.items[id]:{state:'active',...(pre||{})};formOwner={kind:it.ownerKind||'',id:it.ownerId||''};
+  const type=it.type||'';
+  openModal(`<h3>${id?'تعديل متابعة':'متابعة جديدة'}<button class="x" onclick="closeModal()">×</button></h3>${itemFormHTML(it,type)}
+  <div class="btns"><button class="btn" onclick="saveItem(${id?`'${id}'`:'null'})">💾 حفظ</button></div>`)}
+function itemFormHTML(it,type){const t=type?T(type):null;
+  return `<div class="form"><label class="full">النوع<select id="iType" onchange="retype()"><option value="">اختر النوع</option>${TYPE_ORDER.map(k=>`<option value="${k}" ${type===k?'selected':''}>${TYPES[k].ic} ${T(k).l}</option>`).join('')}</select></label>
+  <div class="full" id="iOwnerWrap"><div class="small muted" style="margin-bottom:4px">لمن؟</div>${ownerSelectHTML(formOwner.kind,formOwner.id,type)}</div>
+  <div class="full form" id="iDyn" style="grid-template-columns:inherit">${dynFields(it,type)}</div></div>`}
+function dynFields(it,type){const t=type?T(type):T('other');
+  if(t.periodic)return `<label>آخر مرة أديتها<input type="date" id="iLast" value="${esc(it.lastDone||'')}"></label>
+   <label>أو بالهجري<input id="iLastH" placeholder="1447/09/15" oninput="const g=parseHijriText(this.value);if(g)$('#iLast').value=g"></label>
+   <label>التكرار كل (شهر)<input id="iInt" inputmode="numeric" value="${esc(it.interval||t.interval)}"></label>
+   <label>نبهني قبل (يوم)<input id="iAlert" inputmode="numeric" value="${esc(it.alert??t.alert)}"></label>
+   <label>التكلفة المتوقعة<input id="iCost" inputmode="decimal" value="${esc(it.cost??t.cost)}"></label>
+   <label class="full">ملاحظات<textarea id="iNotes" rows="2">${esc(it.notes)}</textarea></label>`;
+  return `${type==='other'||type==='subscription'||!type?`<label class="full">العنوان<input id="iTitle" value="${esc(it.title)}" placeholder="مثلاً: سجل تجاري، اشتراك نت، رخصة بلدية"></label>`:''}
+   <label>${type==='bank_card'?'آخر 4 أرقام':'الرقم'}<input id="iNum" dir="ltr" value="${esc(type==='bank_card'?String(it.number||'').slice(-4):it.number)}" ${type==='bank_card'?'maxlength="4" inputmode="numeric"':''}></label>
+   <label>${type==='bank_card'?'البنك':'الجهة / الشركة'}<input id="iProv" value="${esc(it.provider)}"></label>
+   <label>تاريخ الإصدار<input type="date" id="iIssue" value="${esc(it.issue||'')}"></label>
+   <label>تاريخ الانتهاء<input type="date" id="iExp" value="${esc(it.expiry||'')}" oninput="$('#iExpH').placeholder=hijS(this.value)||'1449/05/20'"></label>
+   <label>الانتهاء بالهجري<input id="iExpH" placeholder="${it.expiry?hijS(it.expiry):'1449/05/20'}" oninput="const g=parseHijriText(this.value);if(g){$('#iExp').value=g;$('#iExpHo').textContent='= '+fd(g)}"><span class="hint" id="iExpHo"></span></label>
+   <label>نبهني قبل (يوم)<input id="iAlert" inputmode="numeric" value="${esc(it.alert??t.alert)}"></label>
+   <label>تكلفة التجديد (ر.س)<input id="iCost" inputmode="decimal" value="${esc(it.cost??t.cost)}"></label>
+   <label>مدة التجديد (شهر)<input id="iPeriod" inputmode="numeric" value="${esc(it.period||t.period)}"></label>
+   <label>غرامة التأخير (ر.س)<input id="iFine" inputmode="decimal" value="${esc(it.fineA??(t.fine.k==='none'?'':t.fine.a))}" placeholder="بدون"><span class="hint">${t.fine.k==='none'?'':FINE_K[t.fine.k]}</span></label>
+   <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="iRep" style="width:auto" ${it.repeat?'checked':''}> سبق تأخرت فيه (غرامة تكرار)</label>
+   <label class="full">ملاحظات<textarea id="iNotes" rows="2">${esc(it.notes)}</textarea></label>
+   ${t.noImg?'<p class="hint full">🔒 للحماية ما نحفظ صورة البطاقة البنكية ولا رقمها كامل، بس آخر 4 أرقام.</p>':''}`}
+function retype(){const type=v('iType');const cur=collectItem({});$('#iOwnerWrap').innerHTML=`<div class="small muted" style="margin-bottom:4px">لمن؟</div>${ownerSelectHTML(formOwner.kind,formOwner.id,type)}`;
+  const keep={number:cur.number,provider:cur.provider,issue:cur.issue,expiry:cur.expiry,notes:cur.notes,title:cur.title,lastDone:cur.lastDone};$('#iDyn').innerHTML=dynFields(keep,type)}
+function collectItem(base){const type=v('iType');const t=T(type||'other');const o={...base,type};
+  const num=s=>s===''?null:+s;
+  if(t.periodic){o.lastDone=v('iLast');o.interval=num(v('iInt'));o.alert=num(v('iAlert'));o.cost=num(v('iCost'));o.notes=v('iNotes');delete o.expiry}
+  else{if($('#iTitle'))o.title=v('iTitle');o.number=type==='bank_card'?toEn(v('iNum')).replace(/\D/g,'').slice(-4):v('iNum');o.provider=v('iProv');o.issue=v('iIssue');o.expiry=v('iExp');
+    o.alert=num(v('iAlert'));o.cost=num(v('iCost'));o.period=num(v('iPeriod'));o.fineA=num(v('iFine'));o.repeat=!!($('#iRep')&&$('#iRep').checked);o.notes=v('iNotes')}
+  if(o.alert===t.alert)o.alert=null;if(o.cost===t.cost)o.cost=null;if(o.period===t.period)o.period=null;if(o.fineA===t.fine.a)o.fineA=null;
+  return o}
+async function saveItem(id,extra){const type=v('iType');if(!type){toast('اختر النوع');return}
+  const o=collectItem(id?clean(S.items[id]):{state:'active',createdAt:Date.now(),imgs:[]});Object.assign(o,extra||{});
+  o.ownerKind=formOwner.kind||(T(type).owner==='none'?'none':'');o.ownerId=formOwner.id||'';
+  if(!o.ownerKind&&T(type).owner!=='any'){toast('حدد لمن هذه المتابعة');return}
+  if(T(type).periodic?!o.lastDone:!o.expiry){if(!await ask('ما حددت التاريخ. تحفظ بدونه وتكمله بعدين؟','حفظ'))return}
+  const iid=id||uid('i');await dbSet('items/'+iid,o);toast('تم الحفظ ✓');closeModal();return iid}
+let pendingOwner=null;
+function newOwnerFromForm(kind){const snap=collectItem({});Object.keys(snap).forEach(k=>{if(snap[k]==null||snap[k]==='')delete snap[k]});
+  const isScan=!!(scan&&scan.imgs);const d=isScan?{...scan.d,...snap}:snap;if(isScan)scan.d=d;pendingOwner={isScan,d};
+  if(kind==='person'){const nm=d.holderName||'';const lw=/عامل|سائق|خادم|راعي|driver|worker|labor/i.test(d.job||'');editPerson(null,{rel:lw||d.type==='iqama'?'worker':'family',name:nm,nationality:d.nationality||'',job:d.job||''})}
+  else editCar(null,{plate:d.plate||'',make:d.make||'',model:d.model||'',year:d.year||'',color:d.color||'',vin:d.vin||'',serial:d.serial||''})}
+function resumePending(kind,id){const p=pendingOwner;pendingOwner=null;p.d.ownerKind=kind;p.d.ownerId=id;delete p.d.matched;
+  setTimeout(()=>{if(p.isScan&&scan){scan.d=p.d;scanForm()}else editItem(null,p.d)},250)}
+
+/* ================= التصوير الذكي ================= */
+function startScan(pre){const inp=$('#scanFile');inp.value='';inp.onchange=()=>{if(inp.files.length)runScan([...inp.files],pre||{})};inp.click()}
+async function runScan(files,pre){
+  scan={files,imgs:[],d:{...pre},questions:[],raw:''};
+  openModal(`<h3>📸 قراءة المستند<button class="x" onclick="closeModal();scan=null">×</button></h3><div id="scanBody"><p><span class="spin"></span> جاري تجهيز الصورة...</p><div class="prog"><i id="scanProg"></i></div></div>`);
+  try{for(const f of files)scan.imgs.push(await compress(f,1400,.8))}catch(e){$('#scanBody').innerHTML='<p>تعذر قراءة الصورة</p>';return}
+  const ai=ST().ai||{};const prog=p=>{const e=$('#scanProg');if(e)e.style.width=Math.round(p*100)+'%'};
+  const msg=t=>{const e=$('#scanBody p');if(e)e.innerHTML='<span class="spin"></span> '+t};
+  let res=null;
+  if(ai.key){msg('الذكاء الاصطناعي يقرأ المستند...');prog(.3);try{res=await aiExtract(scan.imgs,ai);scan.engine='ai'}catch(e){console.warn(e);toast('تعذر الاتصال بالذكاء الاصطناعي، نجرب القراءة المحلية');}}
+  if(!res){msg('قراءة النص من الصورة (أول مرة تاخذ وقت أطول)...');try{const txt=await ocr(scan.imgs[0],prog);scan.raw=txt;res=parseText(txt);scan.engine='ocr'}catch(e){console.warn(e);res={};scan.engine='none'}}
+  prog(1);applyExtract(res||{});scanForm()}
+function applyExtract(r){const d=scan.d;
+  for(const k of ['type','title','holderName','number','provider','plate','make','model','year','color','vin','serial','nationality','job','cost','notes','relationHint'])if(r[k]!=null&&r[k]!==''&&d[k]==null)d[k]=r[k];
+  if(r.kind==='person_photo'||r.kind==='vehicle_photo')d.kind=r.kind;
+  // التواريخ: الأولوية للهجري المحوّل محلياً لأنه أدق
+  const fix=(g,h)=>{let x=null;if(h)x=parseHijriText(h);if(!x&&g&&/^\d{4}-\d{2}-\d{2}$/.test(g))x=g;return x};
+  const ex=fix(r.expiryDate,r.expiryHijri);if(ex)d.expiry=ex;const is=fix(r.issueDate,r.issueHijri);if(is)d.issue=is;
+  if(r.lastDone)d.lastDone=r.lastDone;
+  if(d.type==='bank_card'){d.number=String(r.last4||d.number||'').replace(/\D/g,'').slice(-4)}
+  if(d.type&&!TYPES[d.type])d.type='other';
+  scan.questions=(r.questions||[]).filter(q=>q&&q.q).slice(0,3);
+  // مطابقة المالك
+  if(!d.ownerKind){
+    if(d.type&&T(d.type).owner==='vehicle'||d.plate||d.vin){const c=matchVehicle(d);if(c){d.ownerKind='vehicle';d.ownerId=c._id;d.matched=true}}
+    if(!d.ownerKind&&d.holderName){const p=matchPerson(d.holderName);if(p){d.ownerKind='person';d.ownerId=p._id;d.matched=true}}
+  }}
+function matchPerson(name){const tk=s=>norm(s).replace(/[^\p{L}\s]/gu,' ').split(/\s+/).filter(w=>w.length>1&&!['بن','ابن','ال','bin','al'].includes(w));
+  const a=tk(name);if(!a.length)return null;let best=null,bs=0;
+  Object.values(S.people).forEach(p=>{const b=tk(p.name);const sh=a.filter(w=>b.some(x=>x===w||x.includes(w)||w.includes(x))).length;const sc=sh/Math.min(a.length,b.length||1);if(sc>bs){bs=sc;best=p}});
+  return bs>=.5?best:null}
+function matchVehicle(d){const n=s=>norm(s).replace(/\s/g,'');return Object.values(S.vehicles).find(c=>(d.plate&&c.plate&&n(c.plate)===n(d.plate))||(d.vin&&c.vin&&n(c.vin)===n(d.vin))||(d.serial&&c.serial&&n(c.serial)===n(d.serial)))||null}
+
+function scanForm(){if(!scan)return;const d=scan.d;formOwner={kind:d.ownerKind||'',id:d.ownerId||''};
+  // صورة شخص أو سيارة وليست مستند
+  if(d.kind==='vehicle_photo'||d.kind==='person_photo'){const isCar=d.kind==='vehicle_photo';
+    openModal(`<h3>${isCar?'🚗 صورة سيارة':'👤 صورة شخص'}<button class="x" onclick="closeModal();scan=null">×</button></h3><img class="big-ph" src="${scan.imgs[0]}">
+    <p>هذي صورة ${isCar?'سيارة':'شخص'} وليست مستند. وش تبغى نسوي فيها؟</p>
+    <div class="opts">${isCar?Object.values(S.vehicles).map(c=>`<button onclick="setOwnerPhoto('vehicle','${c._id}')">${esc(vName(c))}</button>`).join(''):Object.values(S.people).map(p=>`<button onclick="setOwnerPhoto('person','${p._id}')">${esc(p.name)}</button>`).join('')}</div>
+    <div class="btns"><button class="btn" onclick="photoToNew('${isCar?'vehicle':'person'}')">➕ ${isCar?'سيارة':'شخص'} جديد بهذي الصورة</button><button class="btn ghost" onclick="delete scan.d.kind;scanForm()">لا، هذا مستند</button></div>`);return}
+  const ex=d.type&&d.ownerKind?activeItems().find(i=>i.type===d.type&&i.ownerKind===d.ownerKind&&i.ownerId===d.ownerId):null;
+  scan.existing=ex;
+  const qs=[];
+  if(scan.engine==='none'||(!d.type&&!d.expiry))qs.push('ما قدرت أقرأ المستند بوضوح، حدد النوع والتاريخ تحت. وللقراءة الأدق فعّل الذكاء الاصطناعي من الإعدادات.');
+  if(!d.type)qs.push('وش نوع هذا المستند؟ اختر من القائمة.');
+  if(!d.ownerKind)qs.push(d.holderName?`الاسم في المستند "${esc(d.holderName)}" وما لقيته في الأشخاص المسجلين. هل هو أحد المسجلين أو أضيفه كشخص جديد؟`:'هذا المستند لمن؟');
+  else if(d.matched)qs.push(`ربطته تلقائياً بـ <b>${esc(d.ownerKind==='vehicle'?vName(S.vehicles[d.ownerId]):S.people[d.ownerId].name)}</b>. لو غلط غيّره.`);
+  if(d.type&&!T(d.type).periodic&&!d.expiry)qs.push('ما لقيت تاريخ الانتهاء، اكتبه ميلادي أو هجري.');
+  scan.questions.forEach(q=>qs.push(esc(q.q)));
+  openModal(`<h3>📸 تأكيد البيانات<button class="x" onclick="closeModal();scan=null">×</button></h3>
+  <div style="display:flex;gap:8px;overflow-x:auto;margin-bottom:10px">${scan.imgs.map(x=>`<img src="${x}" style="height:110px;border-radius:12px;border:1px solid var(--line)">`).join('')}</div>
+  <p class="small muted">${scan.engine==='ai'?'🤖 قرأها الذكاء الاصطناعي':scan.engine==='ocr'?'🔎 قراءة محلية للنص، راجع البيانات':''}</p>
+  ${qs.length?`<div class="qbox"><b>🤖 عندي أسئلة</b>${qs.map(q=>`<div class="small" style="margin-bottom:4px">• ${q}</div>`).join('')}</div>`:''}
+  ${ex?`<div class="qbox" style="background:var(--amberSoft);border-color:var(--amber)"><b style="color:var(--amber)">🔄 فيه ${esc(tLabel(ex))} مسجل لنفس الشخص ينتهي ${fd(dueDate(ex))}</b><div class="small">هل هذا المستند تجديد له؟</div>
+    <div class="opts"><button class="on" id="exRenew" onclick="scan.asNew=false;this.classList.add('on');$('#exNew').classList.remove('on')">نعم، تجديد (حدّث القديم)</button><button id="exNew" onclick="scan.asNew=true;this.classList.add('on');$('#exRenew').classList.remove('on')">لا، مستند منفصل</button></div>
+    <label class="small" style="display:block;margin-top:6px">المبلغ المدفوع للتجديد<input id="exCost" inputmode="decimal" value="${costOf(ex)||''}"></label></div>`:''}
+  ${itemFormHTML(d,d.type||'')}
+  ${scan.raw?`<details class="small muted" style="margin-top:8px"><summary>النص المقروء</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(scan.raw.slice(0,1500))}</pre></details>`:''}
+  <div class="btns"><button class="btn" onclick="saveScan()">💾 حفظ</button><button class="btn ghost" onclick="closeModal();scan=null">إلغاء</button></div>`)}
+async function setOwnerPhoto(kind,id){const ph=await compress(dataToBlob(scan.imgs[0]),420,.75);const col=kind==='vehicle'?'vehicles':'people';await dbSet(col+'/'+id,{...clean(S[col][id]),photo:ph});toast('تم تحديث الصورة ✓');closeModal();scan=null}
+async function photoToNew(kind){tmpPhoto=await compress(dataToBlob(scan.imgs[0]),420,.75);const ph=tmpPhoto;scan=null;kind==='vehicle'?editCar(null,{photo:ph}):editPerson(null,{photo:ph,rel:'family'})}
+function dataToBlob(u){const[h,b]=u.split(',');const bin=atob(b);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type:h.match(/:(.*?);/)[1]})}
+async function saveScan(){const type=v('iType');if(!type){toast('اختر النوع');return}
+  const ex=scan.existing;const t=T(type);
+  if(ex&&!scan.asNew&&ex.type===type){ // تجديد للموجود
+    const o=collectItem(clean(ex));o.ownerKind=ex.ownerKind;o.ownerId=ex.ownerId;
+    const old=dueDate(ex);const nd=t.periodic?o.lastDone:o.expiry;
+    if(nd&&nd!==old){const late=old?Math.max(0,dBetween(old,today())):0;
+      await dbSet('history/'+uid('h'),{itemId:ex._id,type,title:tLabel(ex),ownerKind:ex.ownerKind,ownerId:ex.ownerId,ownerLabel:ownerLabel(ex),oldDue:old||'',newDue:t.periodic?iso(addMonths(pd(nd),+(o.interval||t.interval))):nd,renewedOn:today(),cost:+v('exCost')||0,fine:fineAt(ex),lateDays:late,note:'من التصوير'});}
+    o.state='active';if(!t.noImg){o.imgs=[...(ex.imgs||[])];for(const x of scan.imgs)o.imgs.push(await imgPut(x))}
+    await dbSet('items/'+ex._id,o);toast('تم تحديث المستند ✓');closeModal();scan=null;return}
+  const imgs=[];if(!t.noImg)for(const x of scan.imgs){try{imgs.push(await imgPut(x))}catch(e){}}
+  const r=await saveItem(null,{imgs,engine:scan.engine});if(r)scan=null}
+
+/* ----- الذكاء الاصطناعي (اختياري: مفتاحك الخاص) ----- */
+function aiPrompt(){const P=Object.values(S.people).map(p=>p.name).slice(0,40),V=Object.values(S.vehicles).map(c=>vName(c)).slice(0,20);
+  return `أنت مساعد يقرأ صور المستندات السعودية والخليجية ويستخرج بياناتها. اليوم ${today()}.
+الأنواع المسموحة لـ type: ${TYPE_ORDER.map(k=>k+' ('+TYPES[k].l+')').join(', ')}.
+الأشخاص المسجلين: ${P.join('، ')||'لا يوجد'}. السيارات المسجلة: ${V.join('، ')||'لا يوجد'}.
+أرجع JSON فقط بهذه المفاتيح (اترك غير المعروف فارغاً ""):
+{"kind":"document" أو "person_photo" أو "vehicle_photo","type":"","title":"عنوان قصير إذا النوع other","holderName":"اسم صاحب المستند كما هو","number":"رقم المستند أو الهوية أو الوثيقة","provider":"الجهة أو البنك أو شركة التأمين","issueDate":"YYYY-MM-DD ميلادي","issueHijri":"YYYY/MM/DD إذا مكتوب هجري","expiryDate":"YYYY-MM-DD ميلادي","expiryHijri":"YYYY/MM/DD إذا مكتوب هجري","nationality":"","job":"المهنة إن وجدت","plate":"رقم اللوحة","make":"","model":"","year":"","color":"","vin":"","serial":"الرقم التسلسلي للمركبة","last4":"آخر 4 أرقام فقط للبطاقة البنكية","cost":"المبلغ إن وجد كرقم","questions":[{"q":"سؤال مهم بالعربي إذا فيه نقص أو غموض يؤثر على المتابعة"}]}
+قواعد: لا تكتب رقم البطاقة البنكية كامل أبداً، فقط last4. انقل التاريخ الهجري كما هو في expiryHijri ولا تخمّن. إذا وثيقة التأمين فيها تاريخ انتهاء استخدمه. اختر أقرب type.`}
+async function aiExtract(imgs,ai){const b64=imgs.map(u=>u.split(',')[1]);let txt='';
+  if((ai.provider||'gemini')==='gemini'){
+    const model=ai.model||'gemini-flash-latest';
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':ai.key},
+      body:JSON.stringify({contents:[{parts:[{text:aiPrompt()},...b64.map(d=>({inline_data:{mime_type:'image/jpeg',data:d}}))]}],generationConfig:{responseMimeType:'application/json',temperature:0.1}})});
+    const j=await r.json();if(!r.ok)throw new Error((j.error&&j.error.message)||r.status);
+    txt=((j.candidates||[])[0]?.content?.parts||[]).map(p=>p.text||'').join('')}
+  else{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':ai.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:ai.model||'claude-haiku-5-5',max_tokens:1200,messages:[{role:'user',content:[...b64.map(d=>({type:'image',source:{type:'base64',media_type:'image/jpeg',data:d}})),{type:'text',text:aiPrompt()+'\nأرجع JSON فقط بدون أي شرح.'}]}]})});
+    const j=await r.json();if(!r.ok)throw new Error((j.error&&j.error.message)||r.status);txt=(j.content||[]).map(c=>c.text||'').join('')}
+  const m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error('no json');const o=JSON.parse(m[0]);
+  if(o.number&&o.type==='bank_card')o.number='';if(o.number&&/\d{13,19}/.test(String(o.number).replace(/\s/g,'')))o.number=String(o.number).replace(/\D/g,'').slice(-4);
+  return o}
+async function testAI(){const ai={provider:v('aiProv'),key:v('aiKey'),model:v('aiModel')};if(!ai.key){toast('اكتب المفتاح');return}
+  $('#aiTest').textContent='جاري الاختبار...';try{
+   if(ai.provider==='gemini'){const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(ai.model||'gemini-flash-latest')}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':ai.key},body:JSON.stringify({contents:[{parts:[{text:'رد بكلمة: تمام'}]}]})});const j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status)}
+   else{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':ai.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:ai.model||'claude-haiku-5-5',max_tokens:10,messages:[{role:'user',content:'رد بكلمة: تمام'}]})});const j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status)}
+   $('#aiTest').textContent='✅ يشتغل'}catch(e){$('#aiTest').textContent='❌ '+e.message}}
+
+/* ----- القراءة المحلية (بدون إنترنت خارجي غير مكتبة القراءة) ----- */
+let tessP=null;function loadTess(){if(window.Tesseract)return Promise.resolve();if(!tessP)tessP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});return tessP}
+async function ocr(img,prog){await loadTess();const r=await Tesseract.recognize(img,'ara+eng',{logger:m=>{if(m.status==='recognizing text')prog(.35+m.progress*.6);else prog(.1)}});return r.data.text||''}
+function parseText(raw){const t=toEn(raw);const low=norm(t);const r={questions:[]};
+  let best=null,bs=0;TYPE_ORDER.forEach(k=>{const sc=(TYPES[k].kw||[]).filter(w=>low.includes(norm(w))).length;if(sc>bs){bs=sc;best=k}});if(best)r.type=best;
+  const dates=[];const re=/(\d{1,4})\s*[\/\-\.]\s*(\d{1,2})\s*[\/\-\.]\s*(\d{2,4})/g;let m;
+  while((m=re.exec(t))){let a=+m[1],b=+m[2],c=+m[3];let g=null,hj=false;
+    if(a>1300&&a<1600){g=h2g(a,b,c);hj=true}else if(c>1300&&c<1600){g=h2g(c,b,a);hj=true}
+    else if(a>1900&&a<2100){g=iso(new Date(a,b-1,c))}else if(c>1900&&c<2100){g=iso(new Date(c,b-1,a))}
+    else if(c<100&&a<=31&&b<=12){g=iso(new Date(2000+c,b-1,a))}
+    if(g)dates.push({g,hj,idx:m.index})}
+  const mm=t.match(/(\d{2})\s*\/\s*(\d{2})(?!\s*\/)/);if(!dates.length&&mm&&r.type==='bank_card'){const mo=+mm[1],yy=+mm[2];if(mo>=1&&mo<=12)dates.push({g:iso(new Date(2000+yy,mo,0)),idx:0})}
+  if(dates.length){dates.sort((a,b)=>a.g.localeCompare(b.g));const fut=dates.filter(x=>x.g>=iso(addMonths(new Date(),-24)));r.expiryDate=(fut.length?fut:dates)[ (fut.length?fut:dates).length-1].g;if(dates.length>1&&dates[0].g<r.expiryDate)r.issueDate=dates[0].g}
+  const ids=t.match(/\b[12]\d{9}\b/);if(ids&&['iqama','national_id','driving_license','other'].includes(r.type||'other'))r.number=ids[0];
+  const pp=t.match(/\b[A-Z]{1,2}\d{6,8}\b/);if(pp&&r.type==='passport')r.number=pp[0];
+  if(r.type==='bank_card'){const c=t.replace(/\s/g,'').match(/\d{16}/);if(c)r.last4=c[0].slice(-4)}
+  const vin=t.match(/\b[A-HJ-NPR-Z0-9]{17}\b/);if(vin)r.vin=vin[0];
+  const nm=t.match(/(?:الاسم|Name)\s*[:：]?\s*([^\n]{3,40})/i);if(nm)r.holderName=nm[1].trim();
+  return r}
+
+/* ---------- التقويم ---------- */
+function vCal(){const A=activeItems().filter(i=>dueDate(i));const start=new Date();start.setDate(1);
+  const late=A.filter(i=>daysLeft(i)<0);
+  let html=late.length?`<div class="card" style="border-right:5px solid var(--red)"><b>⛔ منتهية (${late.length})</b>${sortItems(late,'near').map(calRow).join('')}</div>`:'';
+  html+='<div class="cal">';for(let k=0;k<12;k++){const m=addMonths(start,k);const key=iso(m).slice(0,7);const ev=sortItems(A.filter(i=>dueDate(i).slice(0,7)===key&&daysLeft(i)>=0),'near');
+    html+=`<div class="m"><h4><span>${MONTHS[m.getMonth()]} ${m.getFullYear()}</span><span class="small muted">${ev.length?money(sum(ev,costOf)):''}</span></h4>${ev.map(calRow).join('')||'<div class="small muted">لا شيء</div>'}</div>`}
+  return html+'</div><div class="btns"><button class="btn sec2" onclick="dlICS()">📅 أضف الكل لتقويم جوالك</button></div>'}
+function calRow(i){return `<div class="e st-${status(i)}" onclick="openItem('${i._id}')"><span class="dd">${pd(dueDate(i)).getDate()}</span><span>${t_ic(i)} ${esc(tLabel(i))} · ${esc(ownerLabel(i))}</span></div>`}
+
+/* ================= التقارير ================= */
+const REPS=[['summary','📋 الملخص العام'],['upcoming','⏰ التجديدات القادمة'],['late','⛔ المتأخرات والغرامات'],['neglect','💸 تكلفة الإهمال'],['costs','📅 التكاليف المتوقعة'],['owner','👤 ملف شخص / سيارة'],['workers','👷 تقرير العمالة'],['history','🗂️ سجل التجديدات والمصروف'],['all','📑 جرد كامل']];
+function vRep(){return `<div class="seg noprint">${REPS.map(([k,l])=>`<button class="${repType===k?'on':''}" onclick="repType='${k}';render()">${l}</button>`).join('')}</div>
+  <div class="filters noprint">${repType==='upcoming'?`<select onchange="repDays=+this.value;render()">${[30,60,90,180,365].map(n=>`<option value="${n}" ${repDays===n?'selected':''}>خلال ${n} يوم</option>`).join('')}</select>`:''}
+  ${repType==='owner'?`<select onchange="repOwner=this.value;render()"><option value="">اختر</option>${Object.values(S.people).map(p=>`<option value="person:${p._id}" ${repOwner==='person:'+p._id?'selected':''}>👤 ${esc(p.name)}</option>`).join('')}${Object.values(S.vehicles).map(c=>`<option value="vehicle:${c._id}" ${repOwner==='vehicle:'+c._id?'selected':''}>🚗 ${esc(vName(c))}</option>`).join('')}</select>`:''}
+  ${repType==='history'?`<select onchange="repYear=+this.value;render()">${yearsList().map(y=>`<option ${repYear===y?'selected':''}>${y}</option>`).join('')}</select>`:''}
+  <button class="btn" onclick="window.print()">🖨️ طباعة / PDF</button><button class="btn sec2" onclick="dlReport()">⬇️ تنزيل</button><button class="btn sec2" onclick="dlCSV()">📊 Excel (CSV)</button><button class="btn wa" onclick="waReport()">واتساب</button></div>
+  <div class="rep" id="repBox">${repHTML()}</div>`}
+function yearsList(){const y=new Set([new Date().getFullYear()]);Object.values(S.history).forEach(h=>h.renewedOn&&y.add(+h.renewedOn.slice(0,4)));return [...y].sort((a,b)=>b-a)}
+function rhead(title,sub){return `<div class="rhead"><div><h2>${title}</h2><small>${sub||''}</small></div><div style="text-align:left"><b>${esc(ownerName())}</b><br><small>${fd(today())} · ${esc(hij(today()))}</small></div></div>`}
+const rfoot=()=>`<div class="rfoot">تقرير آلي من برنامج متابعة الانتهاءات · ${fd(today())} · الغرامات المعلّمة "تقديرية" قابلة للتعديل من الإعدادات</div>`;
+function itemsTable(A,cols){cols=cols||['type','owner','num','due','days','status','cost','fine'];
+  const H={type:'النوع',owner:'لمن',num:'الرقم',due:'الانتهاء',hdue:'هجري',days:'المتبقي',status:'الحالة',cost:'التجديد',fine:'الغرامة',alert:'التنبيه'};
+  const C={type:i=>t_ic(i)+' '+esc(tLabel(i)),owner:i=>esc(ownerLabel(i)),num:i=>`<span class="num">${esc(maskNum(i))}</span>`,due:i=>fd(dueDate(i)),hdue:i=>hijS(dueDate(i)),days:i=>daysLeft(i)==null?'-':`<b>${daysLeft(i)}</b>`,
+    status:i=>`<span class="chip st-${status(i)}">${STL[status(i)]}</span>`,cost:i=>nf(costOf(i)),fine:i=>fineAt(i)?`<b style="color:var(--red)">${nf(fineAt(i))}</b>`:'-',alert:i=>alertOf(i)+' يوم'};
+  return `<div class="tbl"><table><thead><tr>${cols.map(c=>`<th>${H[c]}</th>`).join('')}</tr></thead><tbody>${A.map(i=>`<tr>${cols.map(c=>`<td>${C[c](i)}</td>`).join('')}</tr>`).join('')}</tbody>
+  ${cols.includes('cost')?`<tfoot><tr>${cols.map(c=>`<td>${c==='type'?'الإجمالي':c==='cost'?nf(sum(A,costOf)):c==='fine'?nf(sum(A,i=>fineAt(i))):''}</td>`).join('')}</tr></tfoot>`:''}</table></div>`}
+function hbars(rows,red){const mx=Math.max(1,...rows.map(r=>r[1]));return `<div class="hbars">${rows.map(([l,val,ex])=>`<div class="hb"><span>${l}</span><div class="tr"><i class="${red?'red':''}" style="width:${val/mx*100}%"></i></div><b>${ex||money(val)}</b></div>`).join('')}</div>`}
+function rsum(arr){return `<div class="rsum">${arr.map(([l,val])=>`<div><span>${l}</span><b>${val}</b></div>`).join('')}</div>`}
+function repHTML(){const s=stats();const A=s.A;
+  switch(repType){
+  case 'summary':{const byType={};A.forEach(i=>{const k=tLabel(i);byType[k]=(byType[k]||0)+1});
+    return rhead('📋 الملخص العام','حالة كل المتابعات اليوم')+rsum([['نسبة الالتزام',s.score+'%'],['إجمالي المتابعات',A.length],['منتهية',s.by.expired.length],['قريبة الانتهاء',s.by.soon.length],['قيد التجديد',s.by.renewing.length],['سارية',s.by.ok.length],['غرامات متراكمة',money(s.fines)],['تجديدات 90 يوم',money(s.c90)],['تجديدات 12 شهر',money(s.c365)]])+
+    `<h3>حسب النوع</h3>${hbars(Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([k,n])=>[k,n,n+' ']))}
+    <h3>تحتاج إجراء</h3>${itemsTable(sortItems(A.filter(i=>['expired','soon','renewing'].includes(status(i))),'near'))}`+rfoot()}
+  case 'upcoming':{const L=sortItems(A.filter(i=>{const d=daysLeft(i);return d!=null&&d>=0&&d<=repDays}),'near');
+    return rhead(`⏰ التجديدات خلال ${repDays} يوم`,`من ${fd(today())} إلى ${fd(iso(addDays(new Date(),repDays)))}`)+rsum([['العدد',L.length],['التكلفة المتوقعة',money(sum(L,costOf))],['أقرب موعد',L[0]?fd(dueDate(L[0])):'-']])+itemsTable(L,['type','owner','num','due','hdue','days','alert','cost'])+rfoot()}
+  case 'late':{const L=sortItems(s.by.expired,'near');const next=sum(L,i=>fineAt(i,iso(addDays(new Date(),30))));
+    return rhead('⛔ المتأخرات والغرامات','المنتهية اللي ما تجددت')+rsum([['المتأخرات',L.length],['الغرامات الآن',money(s.fines)],['لو تأخرت شهر زيادة',money(next)],['تكلفة التجديد',money(sum(L,costOf))],['الإجمالي المطلوب',money(s.fines+sum(L,costOf))]])+
+    (L.length?itemsTable(L,['type','owner','due','days','status','cost','fine']):'<p class="empty">ما فيه متأخرات 👌</p>')+rfoot()}
+  case 'neglect':{const L=A.filter(i=>fineRule(i).k!=='none'&&dueDate(i)&&!T(i.type).periodic);const H=[0,30,90,180,365];
+    const at=(i,n)=>{const d=dueDate(i);const b=d>today()?d:today();return fineAt(i,iso(addDays(pd(b),n)))};
+    return rhead('💸 تكلفة الإهمال','كم تخسر لو أهملت التجديد بعد موعده')+
+    `<div class="tbl"><table><thead><tr><th>المتابعة</th><th>لمن</th><th>الانتهاء</th>${H.map(n=>`<th>${n?'+'+n+' يوم':'الآن'}</th>`).join('')}</tr></thead><tbody>${sortItems(L,'near').map(i=>`<tr><td>${t_ic(i)} ${esc(tLabel(i))}</td><td>${esc(ownerLabel(i))}</td><td>${fd(dueDate(i))}</td>${H.map(n=>`<td>${n?nf(at(i,n)):nf(fineAt(i))}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="3">الإجمالي</td>${H.map(n=>`<td>${nf(sum(L,i=>n?at(i,n):fineAt(i)))}</td>`).join('')}</tr></tfoot></table></div>
+    <p class="small muted">الحساب من قواعد الغرامات في الإعدادات. الأعمدة تبدأ من تاريخ الانتهاء للي ما انتهى، ومن اليوم للمنتهي.</p>`+rfoot()}
+  case 'costs':{const months=[];const st=new Date();st.setDate(1);for(let k=0;k<12;k++){const m=addMonths(st,k);const key=iso(m).slice(0,7);
+      const L=A.filter(i=>{const d=dueDate(i);if(!d)return false;if(k===0&&d<today())return true;return d.slice(0,7)===key});months.push([MONTHS[m.getMonth()].slice(0,3)+' '+String(m.getFullYear()).slice(2),sum(L,costOf)+(k===0?s.fines:0),L])}
+    const mx=Math.max(1,...months.map(m=>m[1]));const byCat={};A.forEach(i=>{const d=daysLeft(i);if(d!=null&&d<=365){const k=tLabel(i);byCat[k]=(byCat[k]||0)+costOf(i)}});
+    const byOwner={};A.forEach(i=>{const k=ownerLabel(i);byOwner[k]=(byOwner[k]||0)+costOf(i)*12/periodOf(i)});
+    return rhead('📅 التكاليف المتوقعة','خلال 12 شهر القادمة')+rsum([['إجمالي 12 شهر',money(sum(months,m=>m[1]))],['متوسط شهري',money(sum(months,m=>m[1])/12)],['أغلى شهر',months.slice().sort((a,b)=>b[1]-a[1])[0][0]]])+
+    `<div class="vbars">${months.map(m=>`<div class="vb"><b>${m[1]?nf(m[1]):''}</b><i style="height:${m[1]/mx*100}%"></i><span>${m[0]}</span></div>`).join('')}</div>
+    <h3>حسب النوع</h3>${hbars(Object.entries(byCat).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]))}
+    <h3>التكلفة السنوية حسب الشخص/السيارة</h3>${hbars(Object.entries(byOwner).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]))}`+rfoot()}
+  case 'owner':{if(!repOwner)return '<p class="empty">اختر شخص أو سيارة من القائمة فوق</p>';const[k,id]=repOwner.split(':');const o=k==='person'?S.people[id]:S.vehicles[id];if(!o)return '<p class="empty">غير موجود</p>';
+    const L=sortItems(A.filter(i=>i.ownerKind===k&&i.ownerId===id),'near');const H=Object.values(S.history).filter(h=>h.ownerId===id).sort((a,b)=>String(b.renewedOn).localeCompare(a.renewedOn));
+    return rhead((k==='person'?'👤 ':'🚗 ')+esc(k==='person'?o.name:vName(o)),k==='person'?esc([REL[o.rel||'other'].l,o.relation,o.nationality].filter(Boolean).join(' · ')):esc([o.make,o.model,o.year].filter(Boolean).join(' ')))+
+    `<div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">${o.photo?`<img src="${o.photo}" style="width:120px;height:120px;object-fit:cover;border-radius:16px">`:''}<div style="flex:1">${rsum([['المتابعات',L.length],['منتهية',L.filter(i=>status(i)==='expired').length],['تكلفة سنوية',money(sum(L,i=>costOf(i)*12/periodOf(i)))],['مصروف سابق',money(sum(H,h=>(+h.cost||0)+(+h.fine||0)))]])}</div></div>`+
+    itemsTable(L,['type','num','due','hdue','days','status','cost','fine'])+(H.length?`<h3>سجل التجديدات</h3>${histTable(H)}`:'')+rfoot()}
+  case 'workers':{const W=Object.values(S.people).filter(p=>p.rel==='worker');const g=(p,t)=>A.find(i=>i.ownerKind==='person'&&i.ownerId===p._id&&i.type===t);
+    const cell=x=>x?`<span class="chip st-${status(x)}">${fd(dueDate(x))}</span><br><small>${daysLeft(x)} يوم</small>`:'<span class="chip st-nodate">غير مسجل</span>';
+    return rhead('👷 تقرير العمالة',W.length+' عامل')+(W.length?`<div class="tbl"><table><thead><tr><th>العامل</th><th>المهنة</th><th>الإقامة</th><th>الجواز</th><th>رخصة العمل</th><th>خروج وعودة</th><th>التكلفة السنوية</th></tr></thead><tbody>${W.map(p=>{const L=A.filter(i=>i.ownerKind==='person'&&i.ownerId===p._id);
+      return `<tr><td>${p.photo?`<img src="${p.photo}" style="width:34px;height:34px;border-radius:10px;object-fit:cover;vertical-align:middle;margin-left:6px">`:''}<b>${esc(p.name)}</b><br><small>${esc(p.nationality||'')}</small></td><td>${esc(p.job||p.relation||'')}</td><td>${cell(g(p,'iqama'))}</td><td>${cell(g(p,'passport'))}</td><td>${cell(g(p,'work_permit'))}</td><td>${cell(g(p,'exit_reentry'))}</td><td>${nf(sum(L,i=>costOf(i)*12/periodOf(i)))}</td></tr>`}).join('')}</tbody></table></div>`:'<p class="empty">ما فيه عمالة مسجلة</p>')+rfoot()}
+  case 'history':{const H=Object.values(S.history).filter(h=>String(h.renewedOn).startsWith(repYear)).sort((a,b)=>String(a.renewedOn).localeCompare(b.renewedOn));
+    const late=H.filter(h=>+h.fine>0||+h.lateDays>3);const byT={};H.forEach(h=>{byT[h.title]=(byT[h.title]||0)+(+h.cost||0)+(+h.fine||0)});
+    return rhead('🗂️ سجل التجديدات والمصروف '+repYear,'')+rsum([['عدد التجديدات',H.length],['المدفوع للتجديد',money(sum(H,h=>h.cost))],['الغرامات المدفوعة',money(sum(H,h=>h.fine))],['تجديد في وقته',H.length?Math.round((H.length-late.length)/H.length*100)+'%':'-']])+
+    (H.length?`${hbars(Object.entries(byT).sort((a,b)=>b[1]-a[1]))}<h3>التفاصيل</h3>${histTable(H)}`:'<p class="empty">ما فيه تجديدات مسجلة في هذي السنة</p>')+rfoot()}
+  case 'all':return rhead('📑 جرد كامل',A.length+' متابعة')+itemsTable(sortItems(A,'type'),['type','owner','num','due','hdue','days','status','cost','fine'])+rfoot();
+  }return ''}
+function histTable(H){return `<div class="tbl"><table><thead><tr><th>التاريخ</th><th>النوع</th><th>لمن</th><th>من</th><th>إلى</th><th>تأخير</th><th>التكلفة</th><th>الغرامة</th></tr></thead><tbody>${H.map(h=>`<tr><td>${fd(h.renewedOn)}</td><td>${esc(h.title)}</td><td>${esc(h.ownerLabel||'')}</td><td>${fd(h.oldDue)}</td><td>${fd(h.newDue)}</td><td>${+h.lateDays?h.lateDays+' يوم':'-'}</td><td>${nf(h.cost)}</td><td>${+h.fine?nf(h.fine):'-'}</td></tr>`).join('')}</tbody>
+  <tfoot><tr><td colspan="6">الإجمالي</td><td>${nf(sum(H,h=>h.cost))}</td><td>${nf(sum(H,h=>h.fine))}</td></tr></tfoot></table></div>`}
+function dlReport(){const css=[...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');const theme=document.documentElement.dataset.theme||'';
+  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"${theme?` data-theme="${theme}"`:''}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${REPS.find(r=>r[0]===repType)[1]}</title><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet"><style>${css}body{padding:16px}</style></head><body><div class="rep">${$('#repBox').innerHTML}</div></body></html>`;
+  saveFile(`تقرير-${repType}-${today()}.html`,html)}
+function dlCSV(){const A=sortItems(activeItems(),'near');const rows=[['النوع','لمن','الرقم','الإصدار','الانتهاء','الانتهاء هجري','الأيام المتبقية','الحالة','التنبيه قبل','تكلفة التجديد','الغرامة الآن','ملاحظات']];
+  A.forEach(i=>rows.push([tLabel(i),ownerLabel(i),maskNum(i),fd(i.issue),fd(dueDate(i)),hijS(dueDate(i)),daysLeft(i)??'',STL[status(i)],alertOf(i),costOf(i),fineAt(i),i.notes||'']));
+  saveFile(`المتابعات-${today()}.csv`,'\ufeff'+rows.map(r=>r.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'))}
+function waReport(){const s=stats();const L=sortItems(A2(),'near');function A2(){return s.A.filter(i=>['expired','soon','renewing'].includes(status(i)))}
+  const t=`ملخص الانتهاءات ${fd(today())}\nالالتزام: ${s.score}%\nمنتهية: ${s.by.expired.length} · قريبة: ${s.by.soon.length}\nغرامات متراكمة: ${money(s.fines)}\n\n`+L.map(i=>`${t_ic(i)} ${tLabel(i)} - ${ownerLabel(i)}: ${fd(dueDate(i))} (${humanDays(daysLeft(i))})`).join('\n');
+  window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank')}
+async function saveFile(filename,data){const ext=filename.split('.').pop().toLowerCase();const types={csv:'text/csv',html:'text/html',json:'application/json',ics:'text/calendar'};
+  const blob=data instanceof Blob?data:new Blob([data],{type:(types[ext]||'application/octet-stream')+';charset=utf-8'});
+  if(ext!=='ics'&&navigator.canShare&&/iPhone|iPad|Android/i.test(navigator.userAgent)){try{const f=new File([blob],filename,{type:blob.type});if(navigator.canShare({files:[f]})){await navigator.share({files:[f],title:filename});return}}catch(e){if(e.name==='AbortError')return}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);toast('تم التنزيل ✓')}
+
+/* ================= التنبيهات والتقويم ================= */
+function icsDate(s){return s.replace(/-/g,'')}
+function fold(line){const out=[];let cur='',bytes=0;for(const ch of line){const b=new TextEncoder().encode(ch).length;if(bytes+b>73){out.push(cur);cur=' ';bytes=1}cur+=ch;bytes+=b}out.push(cur);return out.join('\r\n')}
+const icsEsc=s=>String(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+function dlICS(ids){const L=(ids?ids.map(i=>S.items[i]):activeItems()).filter(i=>i&&dueDate(i));if(!L.length){toast('ما فيه مواعيد');return}
+  const now=new Date().toISOString().replace(/[-:]/g,'').slice(0,15)+'Z';
+  const ev=L.map(i=>{const d=dueDate(i);const a=alertOf(i);const t=T(i.type);
+    return ['BEGIN:VEVENT','UID:'+i._id+'@abunabi-renewals','DTSTAMP:'+now,'DTSTART;VALUE=DATE:'+icsDate(d),'DTEND;VALUE=DATE:'+icsDate(iso(addDays(pd(d),1))),
+    'SUMMARY:'+icsEsc(`${t.ic} ${t.periodic?'موعد':'انتهاء'} ${tLabel(i)} - ${ownerLabel(i)}`),
+    'DESCRIPTION:'+icsEsc(`${i.number?'الرقم: '+maskNum(i)+'\n':''}تكلفة التجديد: ${money(costOf(i))}\n${t.where?'التجديد: '+t.where+'\n':''}${t.req?'المتطلبات: '+t.req:''}`),
+    'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(`باقي ${a} يوم على ${tLabel(i)} ${ownerLabel(i)}`),'TRIGGER:-P'+Math.max(0,a-1)+'DT15H','END:VALARM',
+    ...(a>7?['BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(`باقي أسبوع على ${tLabel(i)} ${ownerLabel(i)}`),'TRIGGER:-P6DT15H','END:VALARM']:[]),
+    'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(`اليوم ينتهي ${tLabel(i)} ${ownerLabel(i)}`),'TRIGGER:PT9H','END:VALARM','END:VEVENT'].map(fold).join('\r\n')});
+  const cal=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//abunabi//renewals//AR','CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:الانتهاءات',...ev,'END:VCALENDAR'].join('\r\n');
+  saveFile(ids&&ids.length===1?`${tLabel(L[0])}.ics`:`الانتهاءات-${today()}.ics`,cal)}
+async function enableNotify(){if(!('Notification' in window)){toast('المتصفح ما يدعم التنبيهات، استخدم إضافة التقويم');return}
+  const p=await Notification.requestPermission();await dbSet('settings/main',{...clean(ST()),notifyAsked:true});if(p==='granted'){toast('تم التفعيل ✓');localStorage.setItem('rn_last','');dailyNotify()}else toast('ما تم السماح بالتنبيهات')}
+function dailyNotify(){try{if(!('Notification' in window)||Notification.permission!=='granted')return;if(localStorage.getItem('rn_last')===today())return;
+  const L=activeItems().filter(i=>['expired','soon'].includes(status(i)));if(!L.length)return;localStorage.setItem('rn_last',today());
+  const n=sortItems(L,'near')[0];const body=L.length===1?`${tLabel(n)} ${ownerLabel(n)}: ${humanDays(daysLeft(n))}`:`${L.length} مستندات تحتاج انتباهك، أقربها ${tLabel(n)} ${ownerLabel(n)} (${humanDays(daysLeft(n))})`;
+  new Notification('⏳ متابعة الانتهاءات',{body,tag:'renewals'})}catch(e){}}
+
+/* ================= الإعدادات ================= */
+function vSet(){const st=ST(),ai=st.ai||{};
+  return `<div class="card"><b>👤 البيانات</b><div class="form" style="margin-top:8px"><label>الاسم في التقارير<input id="sOwner" value="${esc(ownerName())}"></label></div><div class="btns"><button class="btn sm" onclick="saveSettings({ownerName:v('sOwner')})">حفظ</button></div></div>
+  <div class="card"><b>🔔 التنبيهات</b><p class="small muted">البرنامج ينبهك داخله وعلى الجهاز وقت تفتحه. وللتنبيه المضمون حتى لو البرنامج مقفل، أضف المواعيد لتقويم جوالك (كل موعد معه تنبيه قبله بالمدة اللي اخترتها وتنبيه قبل أسبوع ويوم الانتهاء). أعد الإضافة بعد أي تجديد.</p>
+   <div class="btns"><button class="btn" onclick="enableNotify()">🔔 تفعيل تنبيهات هذا الجهاز</button><button class="btn sec2" onclick="dlICS()">📅 إضافة كل المواعيد للتقويم</button></div></div>
+  <div class="card"><b>🤖 القراءة الذكية للصور</b><p class="small muted">بدون مفتاح: البرنامج يقرأ النص من الصورة محلياً ويحاول يصنفه (أبطأ وأقل دقة). مع مفتاح ذكاء اصطناعي: يفهم المستند ويصنفه ويحول الهجري ويسألك عن الناقص. المفتاح يتحفظ في حسابك المحمي ويشتغل على كل أجهزتك.</p>
+   <div class="form"><label>المزود<select id="aiProv"><option value="gemini" ${(ai.provider||'gemini')==='gemini'?'selected':''}>Google Gemini (فيه استخدام مجاني)</option><option value="claude" ${ai.provider==='claude'?'selected':''}>Claude (Anthropic)</option></select></label>
+   <label>المفتاح API Key<input id="aiKey" type="password" dir="ltr" value="${esc(ai.key||'')}" placeholder="الصق المفتاح هنا"></label>
+   <label>الموديل (اختياري)<input id="aiModel" dir="ltr" value="${esc(ai.model||'')}" placeholder="gemini-flash-latest / claude-haiku-5-5"></label></div>
+   <div class="btns"><button class="btn sm" onclick="saveSettings({ai:{provider:v('aiProv'),key:v('aiKey'),model:v('aiModel')}})">حفظ</button><button class="btn sm sec2" onclick="testAI()">اختبار</button><span class="small" id="aiTest"></span></div>
+   <details class="small muted" style="margin-top:8px"><summary>كيف أطلع مفتاح Gemini المجاني؟</summary><ol><li>افتح aistudio.google.com بحساب Gmail</li><li>اضغط Get API key ثم Create API key</li><li>انسخه والصقه هنا واضغط حفظ ثم اختبار</li></ol></details></div>
+  <div class="card"><b>⏱️ أنواع المتابعات: التنبيه والتكلفة والغرامة</b><p class="small muted">هذي القيم الافتراضية لكل نوع، وتقدر تغيرها لأي متابعة لوحدها من شاشة التعديل. الغرامات المكتوب عليها "تقديرية" تأكد منها من الجهة الرسمية.</p>
+   <div class="tbl"><table><thead><tr><th>النوع</th><th>نبهني قبل (يوم)</th><th>التكلفة</th><th>المدة/التكرار (شهر)</th><th>طريقة الغرامة</th><th>الغرامة</th><th>التكرار</th><th>المهلة (يوم)</th></tr></thead><tbody>
+   ${TYPE_ORDER.map(k=>{const t=T(k);return `<tr><td>${t.ic} ${t.l}${t.est?' <small class="muted">تقديرية</small>':''}</td><td><input data-k="${k}" data-f="alert" value="${t.alert}" style="width:70px" inputmode="numeric"></td><td><input data-k="${k}" data-f="cost" value="${t.cost||0}" style="width:80px" inputmode="decimal"></td><td><input data-k="${k}" data-f="${t.periodic?'interval':'period'}" value="${t.periodic?t.interval:t.period}" style="width:70px" inputmode="numeric"></td>
+   <td>${t.periodic?'-':`<select data-k="${k}" data-f="fk" style="width:150px">${Object.entries(FINE_K).map(([fk,l])=>`<option value="${fk}" ${t.fine.k===fk?'selected':''}>${l}</option>`).join('')}</select>`}</td>
+   <td>${t.periodic?'':`<input data-k="${k}" data-f="fa" value="${t.fine.a||0}" style="width:75px" inputmode="decimal">`}</td><td>${t.periodic?'':`<input data-k="${k}" data-f="fr" value="${t.fine.rep||''}" style="width:75px" inputmode="decimal">`}</td><td>${t.periodic?'':`<input data-k="${k}" data-f="fg" value="${t.fine.grace||0}" style="width:60px" inputmode="numeric">`}</td></tr>`}).join('')}</tbody></table></div>
+   <div class="btns"><button class="btn" onclick="saveTypes()">💾 حفظ الإعدادات</button><button class="btn ghost" onclick="resetTypes()">↩️ إرجاع الافتراضي</button></div></div>
+  <div class="card"><b>💾 النسخ الاحتياطي</b><p class="small muted">بياناتك محفوظة في حسابك وتتزامن تلقائياً، وهذي نسخة إضافية للاحتياط.</p>
+   <div class="btns"><button class="btn sec2" onclick="backup(false)">⬇️ نسخة بدون صور</button><button class="btn sec2" onclick="backup(true)">⬇️ نسخة مع الصور</button><button class="btn ghost" onclick="restore()">⬆️ استعادة من ملف</button></div></div>
+  <div class="card"><b>🎨 المظهر</b><div class="btns"><button class="btn sec2" onclick="toggleTheme()">🌓 تبديل الوضع الليلي/النهاري</button></div></div>
+  <div class="card"><b>👤 الحساب</b><p class="small muted">مسجل الدخول باسم <span class="num">${esc(fbUser&&fbUser.email||'')}</span></p><div class="btns"><button class="btn warn" onclick="logout()">🚪 تسجيل الخروج</button><a class="btn ghost" href="../">🏠 برامجي</a></div></div>
+  <p class="small muted" style="text-align:center">افتح الرابط من أي جوال أو كمبيوتر وسجل دخولك، وكل تعديل يظهر في باقي الأجهزة تلقائياً. أضف الصفحة للشاشة الرئيسية في جوالك لتفتح بضغطة.</p>`}
+async function saveSettings(p){await dbSet('settings/main',{...clean(ST()),...p});toast('تم الحفظ ✓')}
+async function saveTypes(){const types={};document.querySelectorAll('[data-k]').forEach(e=>{const k=e.dataset.k,f=e.dataset.f;const o=types[k]=types[k]||{fine:{}};const val=e.value.trim();
+  if(f==='fk')o.fine.k=val;else if(f==='fa')o.fine.a=+val||0;else if(f==='fr')o.fine.rep=val===''?null:+val;else if(f==='fg')o.fine.grace=+val||0;else o[f]=+val||0});
+  await saveSettings({types})}
+async function resetTypes(){if(await ask('ترجع كل الأنواع للقيم الافتراضية؟','إرجاع'))saveSettings({types:{}})}
+async function backup(withImgs){const d={app:'renewals',version:1,exportedAt:new Date().toISOString()};for(const c of COLS)d[c]=Object.fromEntries(Object.entries(S[c]).map(([k,x])=>[k,clean(x)]));
+  if(d.settings.main&&d.settings.main.ai)d.settings.main.ai={...d.settings.main.ai,key:''};
+  if(withImgs){toast('جاري تجهيز الصور...');d.images={};for(const i of Object.values(S.items))for(const x of i.imgs||[])d.images[x]=await imgGet(x)}
+  saveFile(`نسخة-الانتهاءات-${today()}.json`,JSON.stringify(d))}
+function restore(){const inp=$('#restoreFile');inp.value='';inp.onchange=async()=>{try{const d=JSON.parse(await inp.files[0].text());if(d.app!=='renewals')throw 0;
+  if(!await ask('استعادة النسخة؟ بيتم دمجها مع البيانات الحالية.','استعادة'))return;let n=0;
+  for(const c of COLS)for(const[k,x]of Object.entries(d[c]||{})){if(c==='settings'&&x.ai&&!x.ai.key&&ST().ai)x.ai=ST().ai;await dbSet(c+'/'+k,x);n++}
+  for(const[k,x]of Object.entries(d.images||{}))if(x){await base.collection('images').doc(k).set({data:x,at:Date.now()});n++}
+  toast(`تمت الاستعادة (${n}) ✓`)}catch(e){toast('الملف غير صحيح')}};inp.click()}
+function applyTheme(){const t=localStorage.getItem('rn_theme')||'';if(t)document.documentElement.dataset.theme=t;else delete document.documentElement.dataset.theme;
+  document.querySelector('meta[name=theme-color]').content=t==='dark'?'#0b4d47':'#0f766e'}
+function toggleTheme(){localStorage.setItem('rn_theme',(localStorage.getItem('rn_theme')==='dark')?'':'dark');applyTheme()}
+applyTheme();
+
+/* ================= النوافذ ================= */
+function openModal(html){$('#sheet').innerHTML=html;$('#modal').classList.remove('hidden');document.body.style.overflow='hidden';$('#sheet').scrollTop=0}
+function closeModal(){$('#modal').classList.add('hidden');document.body.style.overflow=''}
+function ask(msg,okLabel='تأكيد'){return new Promise(res=>{const prev=$('#modal').classList.contains('hidden')?null:$('#sheet').innerHTML;
+  openModal(`<h3>تأكيد<button class="x" id="noX">×</button></h3><p>${msg}</p><div class="btns"><button class="btn warn" id="okA">${okLabel}</button><button class="btn ghost" id="noA">إلغاء</button></div>`);
+  const back=()=>{if(prev){$('#sheet').innerHTML=prev}else closeModal()};
+  $('#okA').onclick=()=>{back();res(true)};$('#noA').onclick=$('#noX').onclick=()=>{back();res(false)}})}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+setInterval(()=>{if(fbUser&&$('#modal').classList.contains('hidden'))schedule_render()},60*60*1000); // تحديث العداد كل ساعة
+</script>
+</body>
+</html>
