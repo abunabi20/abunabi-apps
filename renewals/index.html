@@ -680,84 +680,159 @@ async function saveItem(id,extra){const type=v('iType');if(!type){toast('اخت�
 let pendingOwner=null;
 function newOwnerFromForm(kind){const snap=collectItem({});Object.keys(snap).forEach(k=>{if(snap[k]==null||snap[k]==='')delete snap[k]});
   const isScan=!!(scan&&scan.imgs);const d=isScan?{...scan.d,...snap}:snap;if(isScan)scan.d=d;pendingOwner={isScan,d};
-  if(kind==='person'){const nm=d.holderName||'';const lw=/عامل|سائق|خادم|راعي|driver|worker|labor/i.test(d.job||'');editPerson(null,{rel:lw||d.type==='iqama'?'worker':'family',name:nm,nationality:d.nationality||'',job:d.job||''})}
+  if(kind==='person'){const nm=d.holderName||'';const lw=/عامل|سائق|خادم|راعي|driver|worker|labor/i.test(d.job||'');const lr=((LEARN().types||{})[d.type]||{}).rel;editPerson(null,{rel:lr||(lw||d.type==='iqama'?'worker':'family'),name:nm,nationality:d.nationality||'',job:d.job||''})}
   else editCar(null,{plate:d.plate||'',make:d.make||'',model:d.model||'',year:d.year||'',color:d.color||'',vin:d.vin||'',serial:d.serial||''})}
 function resumePending(kind,id){const p=pendingOwner;pendingOwner=null;p.d.ownerKind=kind;p.d.ownerId=id;delete p.d.matched;
   setTimeout(()=>{if(p.isScan&&scan){scan.d=p.d;scanForm()}else editItem(null,p.d)},250)}
 
-/* ================= التصوير الذكي ================= */
-function startScan(pre){const inp=$('#scanFile');inp.value='';inp.onchange=()=>{if(inp.files.length)runScan([...inp.files],pre||{})};inp.click()}
+/* ================= التصوير الذكي: طابور + مراجعة سريعة + تعلّم ================= */
+let queue=[],qTotal=0,qSaved=0;
+const LEARN=()=>S.settings.learn||{};
+const normPlate=s=>norm(s).replace(/[^\p{L}\p{N}]/gu,'');
+function startScan(pre){const inp=$('#scanFile');inp.value='';inp.onchange=()=>{const f=[...inp.files];if(!f.length)return;
+  if(f.length>1){window._mf=f;window._mp=pre||{};openModal(`<h3>📸 ${f.length} صور<button class="x" onclick="closeModal()">×</button></h3><p>كيف أتعامل معها؟</p>
+    <div class="grid g2"><div class="asst" style="--c:var(--pri);cursor:pointer" onclick="beginQueue(_mf.map(x=>[x]),_mp)"><div class="ic">📚</div><div class="tx"><b>كل صورة مستند منفصل</b><small>أقرأها وحدة وحدة وتراجعها بسرعة (${f.length} مستندات)</small></div></div>
+    <div class="asst" style="--c:var(--blue);cursor:pointer" onclick="beginQueue([_mf],_mp)"><div class="ic">🪪</div><div class="tx"><b>كلها مستند واحد</b><small>مثل الوجه والخلف لنفس الإقامة أو الاستمارة</small></div></div></div>`)}
+  else beginQueue([f],pre||{})};inp.click()}
+function beginQueue(groups,pre){queue=groups.map(g=>({files:g,pre:{...pre}}));qTotal=queue.length;qSaved=0;nextInQueue()}
+function nextInQueue(){scan=null;if(!queue.length){closeModal();if(qTotal>1)toast(`تم حفظ ${qSaved} من ${qTotal} مستندات ✓`);qTotal=0;return}
+  const j=queue.shift();runScan(j.files,j.pre)}
+function cancelScan(){queue=[];qTotal=0;scan=null;closeModal()}
+const qLabel=()=>qTotal>1?` <span class="chip st-info">${qTotal-queue.length} من ${qTotal}</span>`:'';
 async function runScan(files,pre){
   scan={files,imgs:[],d:{...pre},questions:[],raw:''};
-  openModal(`<h3>📸 قراءة المستند<button class="x" onclick="closeModal();scan=null">×</button></h3><div id="scanBody"><p><span class="spin"></span> جاري تجهيز الصورة...</p><div class="prog"><i id="scanProg"></i></div></div>`);
-  try{for(const f of files)scan.imgs.push(await compress(f,1400,.8))}catch(e){$('#scanBody').innerHTML='<p>تعذر قراءة الصورة</p>';return}
+  openModal(`<h3><span>📸 قراءة المستند${qLabel()}</span><button class="x" onclick="cancelScan()">×</button></h3><div id="scanBody"><p><span class="spin"></span> جاري تجهيز الصورة...</p><div class="prog"><i id="scanProg"></i></div></div>`);
+  try{for(const f of files)scan.imgs.push(await compress(f,1600,.82))}catch(e){$('#scanBody').innerHTML='<p>تعذر قراءة الصورة</p><div class="btns"><button class="btn" onclick="nextInQueue()">التالي</button></div>';return}
   const ai=ST().ai||{};const prog=p=>{const e=$('#scanProg');if(e)e.style.width=Math.round(p*100)+'%'};
   const msg=t=>{const e=$('#scanBody p');if(e)e.innerHTML='<span class="spin"></span> '+t};
   let res=null;
-  if(ai.key){msg('الذكاء الاصطناعي يقرأ المستند...');prog(.3);try{res=await aiExtract(scan.imgs,ai);scan.engine='ai'}catch(e){console.warn(e);toast('تعذر الاتصال بالذكاء الاصطناعي، نجرب القراءة المحلية');}}
-  if(!res){msg('قراءة النص من الصورة (أول مرة تاخذ وقت أطول)...');try{const txt=await ocr(scan.imgs[0],prog);scan.raw=txt;res=parseText(txt);scan.engine='ocr'}catch(e){console.warn(e);res={};scan.engine='none'}}
-  prog(1);applyExtract(res||{});scanForm()}
-function applyExtract(r){const d=scan.d;
-  for(const k of ['type','title','holderName','number','provider','plate','make','model','year','color','vin','serial','nationality','job','cost','notes','relationHint'])if(r[k]!=null&&r[k]!==''&&d[k]==null)d[k]=r[k];
+  if(ai.key){msg('🤖 الذكاء الاصطناعي يقرأ المستند ويصنفه...');prog(.35);try{res=await aiExtract(scan.imgs,ai);scan.engine='ai'}catch(e){console.warn(e);scan.aiErr=e.message;toast('تعذر الاتصال بالذكاء الاصطناعي، نجرب القراءة المحلية')}}
+  if(!res){msg('🔎 قراءة النص من الصورة (أول مرة تاخذ وقت أطول)...');try{let txt='';for(let k=0;k<scan.imgs.length;k++)txt+=(await ocr(await enhance(scan.imgs[k]),p=>prog((k+p)/scan.imgs.length)))+'\n';scan.raw=txt;res=parseText(txt);scan.engine='ocr'}catch(e){console.warn(e);res={};scan.engine='none'}}
+  prog(1);applyExtract(res||{});
+  if(ST().autoApprove&&isComplete(scan.d)&&(LEARN().types||{})[scan.d.type]?.n>=2&&scan.d.matched&&!scan.questions.length){scanForm();setTimeout(()=>saveScan(),80);return}
+  scanForm()}
+function enhance(u){return new Promise(res=>{const im=new Image();im.onload=()=>{const s=Math.min(2.2,2000/Math.max(im.width,im.height));const w=Math.round(im.width*s),h=Math.round(im.height*s);
+  const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.drawImage(im,0,0,w,h);const D=x.getImageData(0,0,w,h),a=D.data;let mn=255,mx=0;
+  for(let i=0;i<a.length;i+=4){const g=a[i]*.3+a[i+1]*.59+a[i+2]*.11;a[i]=g;if(g<mn)mn=g;if(g>mx)mx=g}const r=255/Math.max(1,mx-mn);
+  for(let i=0;i<a.length;i+=4){const g=Math.max(0,Math.min(255,(a[i]-mn)*r));a[i]=a[i+1]=a[i+2]=g}x.putImageData(D,0,0);res(c.toDataURL('image/png'))};im.onerror=()=>res(u);im.src=u})}
+function isComplete(d){if(!d.type)return false;const t=T(d.type);if(!d.ownerKind&&t.owner!=='none'&&t.owner!=='any')return false;return t.periodic?!!d.lastDone:!!d.expiry}
+function applyExtract(r){const d=scan.d;const L=LEARN();
+  for(const k of ['type','title','holderName','number','provider','plate','make','model','year','color','vin','serial','nationality','job','cost','notes'])if(r[k]!=null&&r[k]!==''&&d[k]==null)d[k]=r[k];
   if(r.kind==='person_photo'||r.kind==='vehicle_photo')d.kind=r.kind;
-  // التواريخ: الأولوية للهجري المحوّل محلياً لأنه أدق
   const fix=(g,h)=>{let x=null;if(h)x=parseHijriText(h);if(!x&&g&&/^\d{4}-\d{2}-\d{2}$/.test(g))x=g;return x};
   const ex=fix(r.expiryDate,r.expiryHijri);if(ex)d.expiry=ex;const is=fix(r.issueDate,r.issueHijri);if(is)d.issue=is;
   if(r.lastDone)d.lastDone=r.lastDone;
   if(d.type==='bank_card'){d.number=String(r.last4||d.number||'').replace(/\D/g,'').slice(-4)}
   if(d.type&&!TYPES[d.type])d.type='other';
+  scan.ext={type:d.type||'',expiry:d.expiry||'',issue:d.issue||'',number:d.number||'',expiryHijri:r.expiryHijri||''}; // ما قرأه البرنامج قبل مراجعتك
   scan.questions=(r.questions||[]).filter(q=>q&&q.q).slice(0,3);
-  // مطابقة المالك
+  // المالك: من اللي تعلّمه أولاً، بعدين بالمقارنة
   if(!d.ownerKind){
-    if(d.type&&T(d.type).owner==='vehicle'||d.plate||d.vin){const c=matchVehicle(d);if(c){d.ownerKind='vehicle';d.ownerId=c._id;d.matched=true}}
+    const keys=[d.plate,d.vin,d.serial].filter(Boolean).map(normPlate);
+    for(const k of keys){const id=(L.plates||{})[k];if(id&&S.vehicles[id]){d.ownerKind='vehicle';d.ownerId=id;d.matched='learn';break}}
+    if(!d.ownerKind&&d.holderName){const id=(L.names||{})[norm(d.holderName)];if(id&&S.people[id]){d.ownerKind='person';d.ownerId=id;d.matched='learn'}}
+    if(!d.ownerKind&&(d.type&&T(d.type).owner==='vehicle'||d.plate||d.vin)){const c=matchVehicle(d);if(c){d.ownerKind='vehicle';d.ownerId=c._id;d.matched=true}}
     if(!d.ownerKind&&d.holderName){const p=matchPerson(d.holderName);if(p){d.ownerKind='person';d.ownerId=p._id;d.matched=true}}
-  }}
+    if(!d.ownerKind&&scan.raw){const txt=norm(toEn(scan.raw)),flat=txt.replace(/[^\p{L}\p{N}]/gu,'');
+      for(const[nm,id]of Object.entries(L.names||{}))if(nm.length>4&&txt.includes(nm)&&S.people[id]){d.ownerKind='person';d.ownerId=id;d.matched='learn';break}
+      if(!d.ownerKind)for(const[pl,id]of Object.entries(L.plates||{}))if(pl.length>3&&flat.includes(pl)&&S.vehicles[id]){d.ownerKind='vehicle';d.ownerId=id;d.matched='learn';break}
+      if(!d.ownerKind){const want=d.type?T(d.type).owner:'any';
+        if(want!=='vehicle'){const p=Object.values(S.people).find(p=>{const tk=norm(p.name).split(/\s+/).filter(w=>w.length>2);return tk.length>=2&&tk.filter(w=>txt.includes(w)).length>=2});if(p){d.ownerKind='person';d.ownerId=p._id;d.matched=true}}
+        if(!d.ownerKind&&want!=='person'){const c=Object.values(S.vehicles).find(c=>c.plate&&normPlate(c.plate).length>3&&flat.includes(normPlate(c.plate).replace(/\D/g,'')));if(c){d.ownerKind='vehicle';d.ownerId=c._id;d.matched=true}}}}
+  }
+  // قيم تعلّمها من نفس النوع (الجهة، التكلفة، مدة التنبيه)
+  const lt=d.type&&(L.types||{})[d.type];
+  if(lt){for(const k of ['provider','cost','alert','period'])if((d[k]==null||d[k]==='')&&lt[k]!=null&&lt[k]!=='')d[k]=lt[k]}
+}
 function matchPerson(name){const tk=s=>norm(s).replace(/[^\p{L}\s]/gu,' ').split(/\s+/).filter(w=>w.length>1&&!['بن','ابن','ال','bin','al'].includes(w));
   const a=tk(name);if(!a.length)return null;let best=null,bs=0;
   Object.values(S.people).forEach(p=>{const b=tk(p.name);const sh=a.filter(w=>b.some(x=>x===w||x.includes(w)||w.includes(x))).length;const sc=sh/Math.min(a.length,b.length||1);if(sc>bs){bs=sc;best=p}});
   return bs>=.5?best:null}
-function matchVehicle(d){const n=s=>norm(s).replace(/\s/g,'');return Object.values(S.vehicles).find(c=>(d.plate&&c.plate&&n(c.plate)===n(d.plate))||(d.vin&&c.vin&&n(c.vin)===n(d.vin))||(d.serial&&c.serial&&n(c.serial)===n(d.serial)))||null}
+function matchVehicle(d){return Object.values(S.vehicles).find(c=>(d.plate&&c.plate&&normPlate(c.plate)===normPlate(d.plate))||(d.vin&&c.vin&&normPlate(c.vin)===normPlate(d.vin))||(d.serial&&c.serial&&normPlate(c.serial)===normPlate(d.serial)))||null}
 
-function scanForm(){if(!scan)return;const d=scan.d;formOwner={kind:d.ownerKind||'',id:d.ownerId||''};
-  // صورة شخص أو سيارة وليست مستند
+function reviewHTML(d){const t=T(d.type);const o=d.ownerKind==='person'?S.people[d.ownerId]:d.ownerKind==='vehicle'?S.vehicles[d.ownerId]:null;
+  const due=t.periodic?(d.lastDone?iso(addMonths(pd(d.lastDone),+(d.interval||t.interval))):null):d.expiry;const dl=due?dBetween(today(),due):null;
+  const st=dl==null?'nodate':dl<0?'expired':dl<=+(d.alert??t.alert)?'soon':'ok';
+  const row=(l,val,ok=true)=>`<dt>${l}</dt><dd>${val||'<span style="color:var(--amber)">غير مقروء</span>'}${val&&ok?' <span style="color:var(--green)">✓</span>':''}</dd>`;
+  const nm=o?(d.ownerKind==='vehicle'?vName(o):o.name):(d.ownerKind==='none'?'عام':'');
+  return `<div class="card st-${st}" style="border-right:5px solid var(--c)">
+   <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px"><div class="av" style="width:60px;height:60px">${o&&o.photo?`<img src="${o.photo}">`:(d.ownerKind==='vehicle'?'🚗':t.ic)}</div>
+    <div style="flex:1"><b style="font-size:17px">${t.ic} ${esc(d.type==='other'?(d.title||t.l):t.l)}</b><div class="small muted">${esc(nm)}${d.matched==='learn'?' · 🧠 عرفته من قبل':d.matched?' · 🔗 ربط تلقائي':''}</div></div>
+    ${dl!=null?`<div class="cd"><div class="d">${Math.abs(dl)}</div><small>${dl<0?'يوم تأخير':'يوم باقي'}</small></div>`:''}</div>
+   <dl class="kv">${row('الرقم',d.number?`<span class="num">${esc(d.type==='bank_card'?'•••• '+d.number:d.number)}</span>`:'',true)}
+    ${t.periodic?row('آخر مرة',d.lastDone?fd(d.lastDone):''):`${d.issue?row('الإصدار',fd(d.issue)+' · '+hijS(d.issue)):''}${row('الانتهاء',d.expiry?fd(d.expiry)+' · '+hijS(d.expiry):'')}`}
+    ${d.provider?row('الجهة',esc(d.provider)):''}${d.holderName&&d.ownerKind==='person'&&o&&norm(o.name)!==norm(d.holderName)?row('الاسم في المستند',esc(d.holderName),false):''}
+    <dt>التنبيه قبل</dt><dd>${+(d.alert??t.alert)} يوم</dd><dt>تكلفة التجديد</dt><dd>${money(+(d.cost??t.cost)||0)}</dd></dl></div>`}
+
+function scanForm(full){if(!scan)return;const d=scan.d;formOwner={kind:d.ownerKind||'',id:d.ownerId||''};
   if(d.kind==='vehicle_photo'||d.kind==='person_photo'){const isCar=d.kind==='vehicle_photo';
-    openModal(`<h3>${isCar?'🚗 صورة سيارة':'👤 صورة شخص'}<button class="x" onclick="closeModal();scan=null">×</button></h3><img class="big-ph" src="${scan.imgs[0]}">
+    openModal(`<h3><span>${isCar?'🚗 صورة سيارة':'👤 صورة شخص'}${qLabel()}</span><button class="x" onclick="cancelScan()">×</button></h3><img class="big-ph" src="${scan.imgs[0]}">
     <p>هذي صورة ${isCar?'سيارة':'شخص'} وليست مستند. وش تبغى نسوي فيها؟</p>
     <div class="opts">${isCar?Object.values(S.vehicles).map(c=>`<button onclick="setOwnerPhoto('vehicle','${c._id}')">${esc(vName(c))}</button>`).join(''):Object.values(S.people).map(p=>`<button onclick="setOwnerPhoto('person','${p._id}')">${esc(p.name)}</button>`).join('')}</div>
-    <div class="btns"><button class="btn" onclick="photoToNew('${isCar?'vehicle':'person'}')">➕ ${isCar?'سيارة':'شخص'} جديد بهذي الصورة</button><button class="btn ghost" onclick="delete scan.d.kind;scanForm()">لا، هذا مستند</button></div>`);return}
+    <div class="btns"><button class="btn" onclick="photoToNew('${isCar?'vehicle':'person'}')">➕ ${isCar?'سيارة':'شخص'} جديد بهذي الصورة</button><button class="btn ghost" onclick="delete scan.d.kind;scanForm()">لا، هذا مستند</button>${queue.length?'<button class="btn ghost" onclick="nextInQueue()">⏭️ تخطي</button>':''}</div>`);return}
   const ex=d.type&&d.ownerKind?activeItems().find(i=>i.type===d.type&&i.ownerKind===d.ownerKind&&i.ownerId===d.ownerId):null;
-  scan.existing=ex;
+  scan.existing=ex;if(scan.asNew==null)scan.asNew=false;
+  const lt=d.type&&(LEARN().types||{})[d.type];const ai=ST().ai||{};
+  const complete=isComplete(d);const quick=complete&&!full;
   const qs=[];
-  if(scan.engine==='none'||(!d.type&&!d.expiry))qs.push('ما قدرت أقرأ المستند بوضوح، حدد النوع والتاريخ تحت. وللقراءة الأدق فعّل الذكاء الاصطناعي من الإعدادات.');
-  if(!d.type)qs.push('وش نوع هذا المستند؟ اختر من القائمة.');
-  if(!d.ownerKind)qs.push(d.holderName?`الاسم في المستند "${esc(d.holderName)}" وما لقيته في الأشخاص المسجلين. هل هو أحد المسجلين أو أضيفه كشخص جديد؟`:'هذا المستند لمن؟');
-  else if(d.matched)qs.push(`ربطته تلقائياً بـ <b>${esc(d.ownerKind==='vehicle'?vName(S.vehicles[d.ownerId]):S.people[d.ownerId].name)}</b>. لو غلط غيّره.`);
-  if(d.type&&!T(d.type).periodic&&!d.expiry)qs.push('ما لقيت تاريخ الانتهاء، اكتبه ميلادي أو هجري.');
+  if(!d.type)qs.push('وش نوع هذا المستند؟');
+  if(!d.ownerKind&&d.type&&!['none','any'].includes(T(d.type).owner))qs.push(d.holderName?`الاسم في المستند "<b>${esc(d.holderName)}</b>" جديد علي. لمن هو؟ (أسألك أول مرة بس، بعدها أعرفه)`:'هذا المستند لمن؟ (أسألك أول مرة بس، بعدها أتعرف عليه)');
+  if(d.type&&!T(d.type).periodic&&!d.expiry)qs.push('ما قدرت أقرأ تاريخ الانتهاء، اكتبه ميلادي أو هجري.');
   scan.questions.forEach(q=>qs.push(esc(q.q)));
-  openModal(`<h3>📸 تأكيد البيانات<button class="x" onclick="closeModal();scan=null">×</button></h3>
-  <div style="display:flex;gap:8px;overflow-x:auto;margin-bottom:10px">${scan.imgs.map(x=>`<img src="${x}" style="height:110px;border-radius:12px;border:1px solid var(--line)">`).join('')}</div>
-  <p class="small muted">${scan.engine==='ai'?'🤖 قرأها الذكاء الاصطناعي':scan.engine==='ocr'?'🔎 قراءة محلية للنص، راجع البيانات':''}</p>
+  const ownerQ=!d.ownerKind&&d.type&&!['none','any'].includes(T(d.type).owner);
+  openModal(`<h3><span>${quick?'⚡ مراجعة سريعة':'📸 أكمل البيانات'}${qLabel()}</span><button class="x" onclick="cancelScan()">×</button></h3>
+  <div style="display:flex;gap:8px;overflow-x:auto;margin-bottom:8px">${scan.imgs.map(x=>`<img src="${x}" onclick="window.open().document.write('<img src=&quot;'+this.src+'&quot; style=&quot;max-width:100%&quot;>')" style="height:${quick?80:110}px;border-radius:12px;border:1px solid var(--line);cursor:zoom-in">`).join('')}</div>
+  <p class="small muted" style="margin:0 0 8px">${scan.engine==='ai'?'🤖 قرأه الذكاء الاصطناعي':scan.engine==='ocr'?'🔎 قراءة محلية':''}${lt?` · 🧠 تعلمت من ${lt.n} ${T(d.type).l} قبل`:''}</p>
+  ${!ai.key?`<div class="qbox" style="background:var(--amberSoft);border-color:var(--amber)"><b style="color:var(--amber)">⚠️ القراءة الحالية محلية وضعيفة</b><div class="small">عشان البرنامج يقرأ المستند كامل ويعبيه بدالك، فعّل القراءة الذكية المجانية (دقيقة وحدة).</div><div class="btns"><button class="btn sm" onclick="cancelScan();aiSetup()">🤖 فعّلها الحين</button></div></div>`:''}
+  ${scan.aiErr?`<div class="small" style="color:var(--red);margin-bottom:8px">خطأ الذكاء الاصطناعي: ${esc(scan.aiErr)}</div>`:''}
+  ${ownerQ?`<div class="qbox"><b>🤖 ${qs.shift()}</b><div class="opts">${(T(d.type).owner!=='vehicle'?Object.values(S.people).map(p=>`<button onclick="pickScanOwner('person','${p._id}')">${p.photo?`<img src="${p.photo}">`:''}${esc(p.name)}</button>`).join(''):'')}${(T(d.type).owner!=='person'?Object.values(S.vehicles).map(c=>`<button onclick="pickScanOwner('vehicle','${c._id}')">🚗 ${esc(vName(c))}</button>`).join(''):'')}
+    ${T(d.type).owner!=='vehicle'?`<button onclick="newOwnerFromForm('person')">➕ ${d.holderName?'أضف '+esc(d.holderName):'شخص جديد'}</button>`:''}${T(d.type).owner!=='person'?`<button onclick="newOwnerFromForm('vehicle')">➕ سيارة جديدة</button>`:''}</div></div>`:''}
   ${qs.length?`<div class="qbox"><b>🤖 عندي أسئلة</b>${qs.map(q=>`<div class="small" style="margin-bottom:4px">• ${q}</div>`).join('')}</div>`:''}
-  ${ex?`<div class="qbox" style="background:var(--amberSoft);border-color:var(--amber)"><b style="color:var(--amber)">🔄 فيه ${esc(tLabel(ex))} مسجل لنفس الشخص ينتهي ${fd(dueDate(ex))}</b><div class="small">هل هذا المستند تجديد له؟</div>
-    <div class="opts"><button class="on" id="exRenew" onclick="scan.asNew=false;this.classList.add('on');$('#exNew').classList.remove('on')">نعم، تجديد (حدّث القديم)</button><button id="exNew" onclick="scan.asNew=true;this.classList.add('on');$('#exRenew').classList.remove('on')">لا، مستند منفصل</button></div>
+  ${ex?`<div class="qbox" style="background:var(--amberSoft);border-color:var(--amber)"><b style="color:var(--amber)">🔄 فيه ${esc(tLabel(ex))} مسجل لنفس الشخص ينتهي ${fd(dueDate(ex))}</b><div class="small">هل هذا تجديد له؟</div>
+    <div class="opts"><button class="${scan.asNew?'':'on'}" id="exRenew" onclick="scan.asNew=false;this.classList.add('on');$('#exNew').classList.remove('on')">نعم، تجديد (حدّث القديم)</button><button class="${scan.asNew?'on':''}" id="exNew" onclick="scan.asNew=true;this.classList.add('on');$('#exRenew').classList.remove('on')">لا، مستند منفصل</button></div>
     <label class="small" style="display:block;margin-top:6px">المبلغ المدفوع للتجديد<input id="exCost" inputmode="decimal" value="${costOf(ex)||''}"></label></div>`:''}
-  ${itemFormHTML(d,d.type||'')}
-  ${scan.raw?`<details class="small muted" style="margin-top:8px"><summary>النص المقروء</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(scan.raw.slice(0,1500))}</pre></details>`:''}
-  <div class="btns"><button class="btn" onclick="saveScan()">💾 حفظ</button><button class="btn ghost" onclick="closeModal();scan=null">إلغاء</button></div>`)}
-async function setOwnerPhoto(kind,id){const ph=await compress(dataToBlob(scan.imgs[0]),420,.75);const col=kind==='vehicle'?'vehicles':'people';await dbSet(col+'/'+id,{...clean(S[col][id]),photo:ph});toast('تم تحديث الصورة ✓');closeModal();scan=null}
-async function photoToNew(kind){tmpPhoto=await compress(dataToBlob(scan.imgs[0]),420,.75);const ph=tmpPhoto;scan=null;kind==='vehicle'?editCar(null,{photo:ph}):editPerson(null,{photo:ph,rel:'family'})}
+  ${quick?reviewHTML(d):''}
+  <div id="fullForm" style="${quick?'display:none':''}">${itemFormHTML(d,d.type||'')}</div>
+  ${scan.raw&&!quick?`<details class="small muted" style="margin-top:8px"><summary>النص المقروء</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(scan.raw.slice(0,1500))}</pre></details>`:''}
+  <div class="btns">${quick?`<button class="btn" style="flex:1;padding:13px;font-size:16px" onclick="saveScan()">✅ صحيح، اعتمد واحفظ</button><button class="btn ghost" onclick="scanForm(true)">✏️ تعديل</button>`:`<button class="btn" style="flex:1" onclick="saveScan()">💾 حفظ</button>`}
+   ${queue.length?'<button class="btn ghost" onclick="nextInQueue()">⏭️ تخطي</button>':''}<button class="btn ghost" onclick="cancelScan()">إلغاء</button></div>`)}
+function pickScanOwner(kind,id){scan.d.ownerKind=kind;scan.d.ownerId=id;scan.d.matched=false;scan.ownerAsked=true;scanForm()}
+async function setOwnerPhoto(kind,id){const ph=await compress(dataToBlob(scan.imgs[0]),420,.75);const col=kind==='vehicle'?'vehicles':'people';await dbSet(col+'/'+id,{...clean(S[col][id]),photo:ph});toast('تم تحديث الصورة ✓');qSaved++;nextInQueue()}
+async function photoToNew(kind){tmpPhoto=await compress(dataToBlob(scan.imgs[0]),420,.75);const ph=tmpPhoto;queue=[];scan=null;kind==='vehicle'?editCar(null,{photo:ph}):editPerson(null,{photo:ph,rel:'family'})}
 function dataToBlob(u){const[h,b]=u.split(',');const bin=atob(b);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type:h.match(/:(.*?);/)[1]})}
-async function saveScan(){const type=v('iType');if(!type){toast('اختر النوع');return}
-  const ex=scan.existing;const t=T(type);
-  if(ex&&!scan.asNew&&ex.type===type){ // تجديد للموجود
+async function saveScan(){const type=v('iType');if(!type){scanForm(true);toast('اختر النوع');return}
+  const ex=scan.existing;const t=T(type);const fin={...collectItem({}),ownerKind:formOwner.kind,ownerId:formOwner.id};
+  if(ex&&!scan.asNew&&ex.type===type){
     const o=collectItem(clean(ex));o.ownerKind=ex.ownerKind;o.ownerId=ex.ownerId;
     const old=dueDate(ex);const nd=t.periodic?o.lastDone:o.expiry;
     if(nd&&nd!==old){const late=old?Math.max(0,dBetween(old,today())):0;
       await dbSet('history/'+uid('h'),{itemId:ex._id,type,title:tLabel(ex),ownerKind:ex.ownerKind,ownerId:ex.ownerId,ownerLabel:ownerLabel(ex),oldDue:old||'',newDue:t.periodic?iso(addMonths(pd(nd),+(o.interval||t.interval))):nd,renewedOn:today(),cost:+v('exCost')||0,fine:fineAt(ex),lateDays:late,note:'من التصوير'});}
     o.state='active';if(!t.noImg){o.imgs=[...(ex.imgs||[])];for(const x of scan.imgs)o.imgs.push(await imgPut(x))}
-    await dbSet('items/'+ex._id,o);toast('تم تحديث المستند ✓');closeModal();scan=null;return}
+    await dbSet('items/'+ex._id,o);await learnFrom({...fin,ownerKind:ex.ownerKind,ownerId:ex.ownerId});toast('تم تحديث المستند ✓');qSaved++;nextInQueue();return}
+  if(!fin.ownerKind&&!['none','any'].includes(t.owner)){scanForm(true);toast('حدد لمن هذا المستند');return}
   const imgs=[];if(!t.noImg)for(const x of scan.imgs){try{imgs.push(await imgPut(x))}catch(e){}}
-  const r=await saveItem(null,{imgs,engine:scan.engine});if(r)scan=null}
+  const r=await saveItem(null,{imgs,engine:scan.engine});if(r){await learnFrom(fin);qSaved++;nextInQueue()}}
+
+/* ----- التعلّم من مراجعتك ----- */
+async function learnFrom(fin){try{if(!scan)return;const L=JSON.parse(JSON.stringify(clean(LEARN())));const d=scan.d,e=scan.ext||{};
+  L.names=L.names||{};L.plates=L.plates||{};L.types=L.types||{};L.misc=L.misc||[];
+  if(fin.ownerKind==='person'&&d.holderName)L.names[norm(d.holderName)]=fin.ownerId;
+  if(fin.ownerKind==='vehicle')[d.plate,d.vin,d.serial].filter(Boolean).forEach(k=>L.plates[normPlate(k)]=fin.ownerId);
+  const t=L.types[fin.type]=L.types[fin.type]||{n:0,ex:[],fix:[],kw:{}};t.n=(t.n||0)+1;
+  if(fin.provider)t.provider=fin.provider;for(const k of ['cost','alert','period'])if(fin[k]!=null)t[k]=fin[k];
+  if(fin.ownerKind==='person'&&S.people[fin.ownerId])t.rel=S.people[fin.ownerId].rel;
+  t.ex=[{holderName:d.holderName||'',number:fin.number||'',issue:fin.issue||'',expiry:fin.expiry||fin.lastDone||'',provider:fin.provider||''},...(t.ex||[])].slice(0,3);
+  const fx=[];
+  if(e.type&&e.type!==fin.type)L.misc=[`مستند صنّفته ${e.type} وهو في الحقيقة ${fin.type}`,...L.misc].slice(0,8);
+  if(e.expiry&&fin.expiry&&e.expiry!==fin.expiry)fx.push(`تاريخ الانتهاء قُرئ ${e.expiry}${e.expiryHijri?' (من الهجري '+e.expiryHijri+')':''} والصحيح ${fin.expiry}`);
+  if(!e.expiry&&fin.expiry)fx.push('تاريخ الانتهاء موجود في المستند وفاتك، دوّر عليه جيداً');
+  if(e.number&&fin.number&&e.number!==fin.number)fx.push(`الرقم قُرئ ${e.number} والصحيح ${fin.number}`);
+  if(e.issue&&fin.issue&&e.issue!==fin.issue)fx.push(`تاريخ الإصدار قُرئ ${e.issue} والصحيح ${fin.issue}`);
+  t.fix=[...fx,...(t.fix||[])].slice(0,5);
+  if(scan.raw){const kw=t.kw||{};norm(toEn(scan.raw)).split(/[^\p{L}]+/u).filter(w=>w.length>=3).forEach(w=>kw[w]=(kw[w]||0)+1);t.kw=Object.fromEntries(Object.entries(kw).sort((a,b)=>b[1]-a[1]).slice(0,40))}
+  await dbSet('settings/learn',L)}catch(e){console.warn('learn',e)}}
+async function forgetLearning(){if(await ask('مسح كل اللي تعلمه البرنامج من مراجعاتك؟ (المتابعات ما تتأثر)','مسح'))await dbSet('settings/learn',{})}
+function aiSetup(){go('set');setTimeout(()=>{const e=$('#aiCard');if(e){e.scrollIntoView({behavior:'smooth',block:'center'});e.style.outline='3px solid var(--pri2)'}},200)}
 
 /* ----- الذكاء الاصطناعي (اختياري: مفتاحك الخاص) ----- */
 function aiPrompt(){const P=Object.values(S.people).map(p=>p.name).slice(0,40),V=Object.values(S.vehicles).map(c=>vName(c)).slice(0,20);
@@ -766,7 +841,13 @@ function aiPrompt(){const P=Object.values(S.people).map(p=>p.name).slice(0,40),V
 الأشخاص المسجلين: ${P.join('، ')||'لا يوجد'}. السيارات المسجلة: ${V.join('، ')||'لا يوجد'}.
 أرجع JSON فقط بهذه المفاتيح (اترك غير المعروف فارغاً ""):
 {"kind":"document" أو "person_photo" أو "vehicle_photo","type":"","title":"عنوان قصير إذا النوع other","holderName":"اسم صاحب المستند كما هو","number":"رقم المستند أو الهوية أو الوثيقة","provider":"الجهة أو البنك أو شركة التأمين","issueDate":"YYYY-MM-DD ميلادي","issueHijri":"YYYY/MM/DD إذا مكتوب هجري","expiryDate":"YYYY-MM-DD ميلادي","expiryHijri":"YYYY/MM/DD إذا مكتوب هجري","nationality":"","job":"المهنة إن وجدت","plate":"رقم اللوحة","make":"","model":"","year":"","color":"","vin":"","serial":"الرقم التسلسلي للمركبة","last4":"آخر 4 أرقام فقط للبطاقة البنكية","cost":"المبلغ إن وجد كرقم","questions":[{"q":"سؤال مهم بالعربي إذا فيه نقص أو غموض يؤثر على المتابعة"}]}
-قواعد: لا تكتب رقم البطاقة البنكية كامل أبداً، فقط last4. انقل التاريخ الهجري كما هو في expiryHijri ولا تخمّن. إذا وثيقة التأمين فيها تاريخ انتهاء استخدمه. اختر أقرب type.`}
+قواعد: لا تكتب رقم البطاقة البنكية كامل أبداً، فقط last4. انقل التاريخ الهجري كما هو في expiryHijri ولا تخمّن. إذا وثيقة التأمين فيها تاريخ انتهاء استخدمه. اختر أقرب type.`+learnPrompt()}
+function learnPrompt(){const L=LEARN();const parts=[];
+  Object.entries(L.types||{}).forEach(([k,t])=>{if((t.ex||[]).length)parts.push(`${k}: أمثلة اعتمدها المستخدم ${JSON.stringify(t.ex.slice(0,2))}`);(t.fix||[]).forEach(f=>parts.push(`${k}: تصحيح سابق من المستخدم: ${f}`))});
+  (L.misc||[]).forEach(f=>parts.push('تصحيح تصنيف: '+f));
+  const names=Object.entries(L.names||{}).filter(([n,id])=>S.people[id]).slice(0,30).map(([n,id])=>`"${n}" = ${S.people[id].name}`);
+  if(names.length)parts.push('أسماء تعرفنا عليها سابقاً (الاسم في المستند = الشخص المسجل): '+names.join('، '));
+  return parts.length?'\n\nتعلّم من مراجعات المستخدم السابقة وطبقها على المستندات المشابهة:\n'+parts.slice(0,30).join('\n'):''}
 async function aiExtract(imgs,ai){const b64=imgs.map(u=>u.split(',')[1]);let txt='';
   if((ai.provider||'gemini')==='gemini'){
     const model=ai.model||'gemini-flash-latest';
@@ -790,7 +871,7 @@ async function testAI(){const ai={provider:v('aiProv'),key:v('aiKey'),model:v('a
 let tessP=null;function loadTess(){if(window.Tesseract)return Promise.resolve();if(!tessP)tessP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});return tessP}
 async function ocr(img,prog){await loadTess();const r=await Tesseract.recognize(img,'ara+eng',{logger:m=>{if(m.status==='recognizing text')prog(.35+m.progress*.6);else prog(.1)}});return r.data.text||''}
 function parseText(raw){const t=toEn(raw);const low=norm(t);const r={questions:[]};
-  let best=null,bs=0;TYPE_ORDER.forEach(k=>{const sc=(TYPES[k].kw||[]).filter(w=>low.includes(norm(w))).length;if(sc>bs){bs=sc;best=k}});if(best)r.type=best;
+  let best=null,bs=0;const LT=LEARN().types||{};TYPE_ORDER.forEach(k=>{let sc=(TYPES[k].kw||[]).filter(w=>low.includes(norm(w))).length;const kw=Object.keys((LT[k]||{}).kw||{});if(kw.length)sc+=kw.filter(w=>low.includes(w)).length/kw.length*3;if(sc>bs){bs=sc;best=k}});if(best)r.type=best;
   const dates=[];const re=/(\d{1,4})\s*[\/\-\.]\s*(\d{1,2})\s*[\/\-\.]\s*(\d{2,4})/g;let m;
   while((m=re.exec(t))){let a=+m[1],b=+m[2],c=+m[3];let g=null,hj=false;
     if(a>1300&&a<1600){g=h2g(a,b,c);hj=true}else if(c>1300&&c<1600){g=h2g(c,b,a);hj=true}
@@ -917,12 +998,15 @@ function vSet(){const st=ST(),ai=st.ai||{};
   return `<div class="card"><b>👤 البيانات</b><div class="form" style="margin-top:8px"><label>الاسم في التقارير<input id="sOwner" value="${esc(ownerName())}"></label></div><div class="btns"><button class="btn sm" onclick="saveSettings({ownerName:v('sOwner')})">حفظ</button></div></div>
   <div class="card"><b>🔔 التنبيهات</b><p class="small muted">البرنامج ينبهك داخله وعلى الجهاز وقت تفتحه. وللتنبيه المضمون حتى لو البرنامج مقفل، أضف المواعيد لتقويم جوالك (كل موعد معه تنبيه قبله بالمدة اللي اخترتها وتنبيه قبل أسبوع ويوم الانتهاء). أعد الإضافة بعد أي تجديد.</p>
    <div class="btns"><button class="btn" onclick="enableNotify()">🔔 تفعيل تنبيهات هذا الجهاز</button><button class="btn sec2" onclick="dlICS()">📅 إضافة كل المواعيد للتقويم</button></div></div>
-  <div class="card"><b>🤖 القراءة الذكية للصور</b><p class="small muted">بدون مفتاح: البرنامج يقرأ النص من الصورة محلياً ويحاول يصنفه (أبطأ وأقل دقة). مع مفتاح ذكاء اصطناعي: يفهم المستند ويصنفه ويحول الهجري ويسألك عن الناقص. المفتاح يتحفظ في حسابك المحمي ويشتغل على كل أجهزتك.</p>
+  <div class="card" id="aiCard"><b>🤖 القراءة الذكية للصور</b><p class="small muted">بدون مفتاح: البرنامج يقرأ النص من الصورة محلياً ويحاول يصنفه (أبطأ وأقل دقة). مع مفتاح ذكاء اصطناعي: يفهم المستند ويصنفه ويحول الهجري ويسألك عن الناقص. المفتاح يتحفظ في حسابك المحمي ويشتغل على كل أجهزتك.</p>
    <div class="form"><label>المزود<select id="aiProv"><option value="gemini" ${(ai.provider||'gemini')==='gemini'?'selected':''}>Google Gemini (فيه استخدام مجاني)</option><option value="claude" ${ai.provider==='claude'?'selected':''}>Claude (Anthropic)</option></select></label>
    <label>المفتاح API Key<input id="aiKey" type="password" dir="ltr" value="${esc(ai.key||'')}" placeholder="الصق المفتاح هنا"></label>
    <label>الموديل (اختياري)<input id="aiModel" dir="ltr" value="${esc(ai.model||'')}" placeholder="gemini-flash-latest / claude-haiku-5-5"></label></div>
    <div class="btns"><button class="btn sm" onclick="saveSettings({ai:{provider:v('aiProv'),key:v('aiKey'),model:v('aiModel')}})">حفظ</button><button class="btn sm sec2" onclick="testAI()">اختبار</button><span class="small" id="aiTest"></span></div>
-   <details class="small muted" style="margin-top:8px"><summary>كيف أطلع مفتاح Gemini المجاني؟</summary><ol><li>افتح aistudio.google.com بحساب Gmail</li><li>اضغط Get API key ثم Create API key</li><li>انسخه والصقه هنا واضغط حفظ ثم اختبار</li></ol></details></div>
+   <div class="qbox" style="margin-top:10px"><b>طريقة تطليع المفتاح المجاني (دقيقة وحدة)</b><ol class="small" style="margin:4px 0;padding-right:18px"><li>اضغط الزر تحت وادخل بحساب Gmail حقك</li><li>اضغط <b>Create API key</b> واختر أي مشروع أو اضغط Create</li><li>اضغط نسخ 📋 ورجع هنا والصقه في خانة المفتاح</li><li>اضغط <b>حفظ</b> ثم <b>اختبار</b></li></ol><a class="btn sm" target="_blank" href="https://aistudio.google.com/apikey">🔑 افتح صفحة المفتاح</a></div>
+   <div class="divider"></div><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" style="width:auto" ${st.autoApprove?'checked':''} onchange="saveSettings({autoApprove:this.checked})"> اعتماد تلقائي بدون مراجعة للمستندات اللي عرفها من قبل (نفس النوع ونفس الشخص) وبياناتها كاملة</label>
+   <p class="small muted">🧠 تعلّم من مراجعاتك: ${Object.values((S.settings.learn||{}).types||{}).reduce((a,t)=>a+(t.n||0),0)} مستند، ويعرف ${Object.keys((S.settings.learn||{}).names||{}).length} اسم و ${Object.keys((S.settings.learn||{}).plates||{}).length} لوحة. كل ما راجعت أكثر صار أدق.</p>
+   <div class="btns"><button class="btn sm ghost" onclick="forgetLearning()">مسح التعلّم</button></div></div>
   <div class="card"><b>⏱️ أنواع المتابعات: التنبيه والتكلفة والغرامة</b><p class="small muted">هذي القيم الافتراضية لكل نوع، وتقدر تغيرها لأي متابعة لوحدها من شاشة التعديل. الغرامات المكتوب عليها "تقديرية" تأكد منها من الجهة الرسمية.</p>
    <div class="tbl"><table><thead><tr><th>النوع</th><th>نبهني قبل (يوم)</th><th>التكلفة</th><th>المدة/التكرار (شهر)</th><th>طريقة الغرامة</th><th>الغرامة</th><th>التكرار</th><th>المهلة (يوم)</th></tr></thead><tbody>
    ${TYPE_ORDER.map(k=>{const t=T(k);return `<tr><td>${t.ic} ${t.l}${t.est?' <small class="muted">تقديرية</small>':''}</td><td><input data-k="${k}" data-f="alert" value="${t.alert}" style="width:70px" inputmode="numeric"></td><td><input data-k="${k}" data-f="cost" value="${t.cost||0}" style="width:80px" inputmode="decimal"></td><td><input data-k="${k}" data-f="${t.periodic?'interval':'period'}" value="${t.periodic?t.interval:t.period}" style="width:70px" inputmode="numeric"></td>
