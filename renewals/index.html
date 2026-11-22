@@ -171,6 +171,8 @@ tfoot td{font-weight:700;background:var(--card2)}
 .rfoot{margin-top:16px;font-size:11px;color:var(--muted);text-align:center;border-top:1px solid var(--line);padding-top:8px}
 .qbox{border:1.5px dashed var(--pri2);background:var(--priSoft);border-radius:14px;padding:12px;margin-bottom:12px}
 .qbox b{display:block;margin-bottom:6px;color:var(--pri)}
+.qbox li b,.qbox .small b{display:inline;margin:0}
+#aiTest{display:block;width:100%;font-weight:700;font-size:15px;margin-top:4px}
 .opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .opts button{border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
 .opts button img{width:22px;height:22px;border-radius:50%;object-fit:cover}
@@ -862,10 +864,10 @@ async function aiExtract(imgs,ai){const b64=imgs.map(u=>u.split(',')[1]);let txt
   if(o.number&&o.type==='bank_card')o.number='';if(o.number&&/\d{13,19}/.test(String(o.number).replace(/\s/g,'')))o.number=String(o.number).replace(/\D/g,'').slice(-4);
   return o}
 async function testAI(){const ai={provider:v('aiProv'),key:v('aiKey'),model:v('aiModel')};if(!ai.key){toast('اكتب المفتاح');return}
-  $('#aiTest').textContent='جاري الاختبار...';try{
+  $('#aiTest').textContent='⏳ جاري الاختبار...';try{
    if(ai.provider==='gemini'){const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(ai.model||'gemini-flash-latest')}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':ai.key},body:JSON.stringify({contents:[{parts:[{text:'رد بكلمة: تمام'}]}]})});const j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status)}
    else{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':ai.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:ai.model||'claude-haiku-5-5',max_tokens:10,messages:[{role:'user',content:'رد بكلمة: تمام'}]})});const j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status)}
-   $('#aiTest').textContent='✅ يشتغل'}catch(e){$('#aiTest').textContent='❌ '+e.message}}
+   $('#aiTest').textContent='✅ يشتغل، القراءة الذكية جاهزة';toast('✅ القراءة الذكية تشتغل')}catch(e){$('#aiTest').textContent='❌ '+e.message;toast('❌ المفتاح ما اشتغل')}}
 
 /* ----- القراءة المحلية (بدون إنترنت خارجي غير مكتبة القراءة) ----- */
 let tessP=null;function loadTess(){if(window.Tesseract)return Promise.resolve();if(!tessP)tessP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});return tessP}
@@ -1002,7 +1004,7 @@ function vSet(){const st=ST(),ai=st.ai||{};
    <div class="form"><label>المزود<select id="aiProv"><option value="gemini" ${(ai.provider||'gemini')==='gemini'?'selected':''}>Google Gemini (فيه استخدام مجاني)</option><option value="claude" ${ai.provider==='claude'?'selected':''}>Claude (Anthropic)</option></select></label>
    <label>المفتاح API Key<input id="aiKey" type="password" dir="ltr" value="${esc(ai.key||'')}" placeholder="الصق المفتاح هنا"></label>
    <label>الموديل (اختياري)<input id="aiModel" dir="ltr" value="${esc(ai.model||'')}" placeholder="gemini-flash-latest / claude-haiku-5-5"></label></div>
-   <div class="btns"><button class="btn sm" onclick="saveSettings({ai:{provider:v('aiProv'),key:v('aiKey'),model:v('aiModel')}})">حفظ</button><button class="btn sm sec2" onclick="testAI()">اختبار</button><span class="small" id="aiTest"></span></div>
+   <div class="btns"><button class="btn sm" onclick="saveSettings({ai:{provider:v('aiProv'),key:v('aiKey'),model:v('aiModel')}}).then(testAI)">حفظ واختبار</button><span class="small" id="aiTest"></span></div>
    <div class="qbox" style="margin-top:10px"><b>طريقة تطليع المفتاح المجاني (دقيقة وحدة)</b><ol class="small" style="margin:4px 0;padding-right:18px"><li>اضغط الزر تحت وادخل بحساب Gmail حقك</li><li>اضغط <b>Create API key</b> واختر أي مشروع أو اضغط Create</li><li>اضغط نسخ 📋 ورجع هنا والصقه في خانة المفتاح</li><li>اضغط <b>حفظ</b> ثم <b>اختبار</b></li></ol><a class="btn sm" target="_blank" href="https://aistudio.google.com/apikey">🔑 افتح صفحة المفتاح</a></div>
    <div class="divider"></div><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" style="width:auto" ${st.autoApprove?'checked':''} onchange="saveSettings({autoApprove:this.checked})"> اعتماد تلقائي بدون مراجعة للمستندات اللي عرفها من قبل (نفس النوع ونفس الشخص) وبياناتها كاملة</label>
    <p class="small muted">🧠 تعلّم من مراجعاتك: ${Object.values((S.settings.learn||{}).types||{}).reduce((a,t)=>a+(t.n||0),0)} مستند، ويعرف ${Object.keys((S.settings.learn||{}).names||{}).length} اسم و ${Object.keys((S.settings.learn||{}).plates||{}).length} لوحة. كل ما راجعت أكثر صار أدق.</p>
