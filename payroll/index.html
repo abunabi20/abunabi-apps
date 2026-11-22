@@ -188,7 +188,7 @@ tfoot td{font-weight:700;background:var(--card2)}
 .score{font-size:42px;font-weight:700}
 .printonly{display:none}
 #login{position:fixed;inset:0;z-index:90;background:linear-gradient(140deg,#0f1f33,#1e3a5f 55%,#c9a84c);display:flex;align-items:center;justify-content:center;padding:20px}
-#login.hidden{display:none}
+#login.hidden,#verify.hidden{display:none!important}
 .lbox{background:#fff;color:#1f2d2b;border-radius:26px;padding:28px 22px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.18);text-align:center}
 .lbox .logo{margin:0 auto 10px;background:#f8efd9;width:64px;height:64px;font-size:34px}
 .lbox h2{margin:4px 0 2px;font-size:20px}.lbox p{margin:0 0 18px;color:#6b7a76;font-size:13px}
@@ -257,7 +257,11 @@ tfoot td{font-weight:700;background:var(--card2)}
 <form id="lform"><input id="lemail" type="email" autocomplete="username" placeholder="الإيميل" dir="ltr" required>
 <input id="lpass" type="password" autocomplete="current-password" placeholder="كلمة المرور" dir="ltr" required>
 <div class="lerr" id="lerr"></div><button class="btn" type="submit" id="lbtn">دخول</button></form>
-<p style="margin:14px 0 0"><a href="#" id="lreset" style="color:#1e3a5f;font-size:13px">نسيت كلمة المرور؟</a></p></div></div>
+<p style="margin:14px 0 0;display:flex;justify-content:space-between;gap:10px"><a href="#" id="lreset" style="color:#1e3a5f;font-size:13px">نسيت كلمة المرور؟</a><a href="#" id="lsignup" style="color:#b8892b;font-size:13px;font-weight:700">أول مرة؟ أنشئ حسابك</a></p></div></div>
+<div id="verify" class="hidden" style="position:fixed;inset:0;z-index:91;background:linear-gradient(140deg,#0f1f33,#1e3a5f 55%,#c9a84c);display:flex;align-items:center;justify-content:center;padding:20px"><div class="lbox"><div class="logo">📧</div><h2>فعّل حسابك</h2>
+<p>أرسلنا رابط تفعيل على <b id="vEmail" dir="ltr"></b>. افتح إيميلك (وشيك على الرسائل غير المرغوب فيها) واضغط الرابط، بعدها ارجع هنا.</p>
+<button class="btn" style="width:100%;margin-bottom:8px" onclick="recheckVerify()">✅ فعّلته، دخّلني</button><button class="btn" style="width:100%;background:#e6edf6;color:#1e3a5f" onclick="resendVerify()">إعادة إرسال الرابط</button>
+<p style="margin:14px 0 0"><a href="#" onclick="auth.signOut();return false" style="color:#1e3a5f;font-size:13px">رجوع</a></p></div></div>
 <script>
 /* ================= ثوابت ================= */
 const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -270,6 +274,9 @@ const DOC_T={iqama:{l:'إقامة',ic:'🪪',alert:60},passport:{l:'جواز س�
 const PR_TYPES={'إقامة':'iqama','اقامة':'iqama','اقامه':'iqama','هوية مقيم':'iqama','جواز سفر':'passport','جواز':'passport','رخصة قيادة':'driving_license','تصريح عمل':'work_permit','رخصة عمل':'work_permit','تأمين صحي':'medical_ins','تأمين طبي':'medical_ins','خروج وعودة':'exit_reentry','تأشيرة خروج وعودة':'exit_reentry'};
 const TABS=[['home','الرئيسية','🏠'],['pay','صرف الرواتب','💰'],['emps','الموظفون','👥'],['loans','السلف','💸'],['docs','المستندات','🪪'],['rep','التقارير','📊'],['set','الإعدادات','⚙️']];
 const COLS=['employees','salaries','loans','meta'];
+const OWNER='abunabi@gmail.com';
+const ALLOWED=['abunabi@gmail.com','abunabi20@gmail.com','abunabi22@gmail.com','abunabi4@gmail.com','abunabi2000@hotmail.com','majiid1.q8@gmail.com','majiid.q8@gmail.com','abunabi28@gmail.com'];
+const isOwner=()=>!!fbUser&&String(fbUser.email).toLowerCase()===OWNER;
 
 /* ================= الحالة ================= */
 const S={employees:{},salaries:{},loans:{},meta:{}};const R={people:{},items:{}};
@@ -334,9 +341,17 @@ $('#lform').addEventListener('submit',async e=>{e.preventDefault();$('#lerr').te
 $('#lreset').addEventListener('click',async e=>{e.preventDefault();const em=v('lemail');if(!em){$('#lerr').textContent='اكتب إيميلك أولاً';return}
   try{await auth.sendPasswordResetEmail(em);$('#lerr').style.color='#15803d';$('#lerr').textContent='أرسلنا رابط تغيير كلمة المرور على إيميلك'}catch(err){$('#lerr').textContent=AUTH_ERR[err.code]||err.code}});
 async function logout(){if(await ask('تسجيل الخروج من هذا الجهاز؟','خروج'))auth.signOut()}
+$('#lsignup').addEventListener('click',async e=>{e.preventDefault();const em=v('lemail').toLowerCase(),pw=$('#lpass').value;$('#lerr').style.color='';
+  if(!ALLOWED.includes(em)){$('#lerr').textContent='هذا الإيميل غير مصرح له بالدخول';return}
+  if(pw.length<6){$('#lerr').textContent='اكتب كلمة مرور 6 أحرف أو أكثر في الخانة الثانية';return}
+  try{const c=await auth.createUserWithEmailAndPassword(em,pw);await c.user.sendEmailVerification();}catch(err){$('#lerr').textContent=err.code==='auth/email-already-in-use'?'هذا الإيميل له حساب من قبل، سجّل دخول أو اضغط نسيت كلمة المرور':(AUTH_ERR[err.code]||err.code)}});
+async function recheckVerify(){try{await auth.currentUser.reload();await auth.currentUser.getIdToken(true);if(auth.currentUser.emailVerified){location.reload()}else toast('للحين ما تم التفعيل، افتح الرابط اللي في إيميلك')}catch(e){toast('تعذر التحقق')}}
+async function resendVerify(){try{await auth.currentUser.sendEmailVerification();toast('أرسلنا رابط التفعيل مرة ثانية ✓')}catch(e){toast('انتظر شوي وحاول مرة ثانية')}}
 auth.onAuthStateChanged(u=>{
-  fbUser=u;unsubs.forEach(f=>f());unsubs=[];
+  fbUser=u;unsubs.forEach(f=>f());unsubs=[];$('#verify').classList.add('hidden');
   if(!u){base=null;COLS.forEach(c=>S[c]={});$('#login').classList.remove('hidden');$('#sync').textContent='🔒 غير مسجل';return}
+  if(!ALLOWED.includes(String(u.email).toLowerCase())){$('#lerr').textContent='هذا الإيميل غير مصرح له بالدخول';auth.signOut();return}
+  if(!isOwner()&&!u.emailVerified){$('#login').classList.add('hidden');$('#vEmail').textContent=u.email;$('#verify').classList.remove('hidden');return}
   $('#login').classList.add('hidden');$('#sync').textContent='⏳ جاري التحميل';
   base=fs.collection('apps').doc('payroll');rbase=fs.collection('apps').doc('renewals');
   const ok=new Set();const timer=setTimeout(()=>{if(ok.size<COLS.length)$('#sync').textContent='⚠️ بدون اتصال، يعرض آخر نسخة'},10000);
@@ -345,7 +360,7 @@ auth.onAuthStateChanged(u=>{
       if(!snap.metadata.fromCache)ok.add(c);
       if(ok.size===COLS.length){clearTimeout(timer);$('#sync').textContent=snap.metadata.hasPendingWrites?'⏳ جاري الحفظ':'✅ متزامن'}
       schedule_render()},err=>{clearTimeout(timer);$('#sync').textContent=err.code==='permission-denied'?'⛔ هذا الحساب ليس له صلاحية':'⚠️ خطأ في الاتصال';schedule_render()}))});
-  ['people','items'].forEach(c=>unsubs.push(rbase.collection(c).onSnapshot(snap=>{R[c]=Object.fromEntries(snap.docs.map(d=>[d.id,{...d.data(),_id:d.id}]));schedule_render()},()=>{})));
+  if(isOwner())['people','items'].forEach(c=>unsubs.push(rbase.collection(c).onSnapshot(snap=>{R[c]=Object.fromEntries(snap.docs.map(d=>[d.id,{...d.data(),_id:d.id}]));schedule_render()},()=>{})));
 });
 
 /* ================= منطق الرواتب ================= */
@@ -386,7 +401,8 @@ const allDocs=()=>emps().flatMap(e=>docsOf(e).map(i=>({...i,emp:e}))).sort((a,b)
 
 /* ================= العرض ================= */
 function render(){if(!fbUser)return;
-  $('#tabbar').innerHTML=TABS.map(([k,l,i])=>`<button class="tab ${tab===k?'on':''}" onclick="go('${k}')">${i} ${l}</button>`).join('');
+  if(tab==='docs'&&!isOwner())tab='home';
+  $('#tabbar').innerHTML=TABS.filter(t=>t[0]!=='docs'||isOwner()).map(([k,l,i])=>`<button class="tab ${tab===k?'on':''}" onclick="go('${k}')">${i} ${l}</button>`).join('');
   const f={home:vHome,pay:vPay,emps:vEmps,loans:vLoans,docs:vDocs,rep:vRep,set:vSet}[tab];$('#main').innerHTML=f();
   const lateN=activeEmps().filter(e=>lateMonths(e).length).length;$('#bSub').textContent=lateN?`${lateN} موظف عليه رواتب متأخرة`:'كل الرواتب مصروفة ✓';
   $('#fab').style.display=['home','pay','emps'].includes(tab)?'':'none'}
@@ -432,7 +448,7 @@ function smartHTML(){const out=[];const y=curY(),m=curM();
     if(age>90)out.push({c:'amber',ic:'💸',t:`سلفة ${e?e.name:''} قائمة من ${durationTxt(age)}`,s:`الباقي ${money(bal)} من ${money(l.amount)}`,a:`repayLoan('${l._id}')`,b:'سداد'})});
   allDocs().filter(i=>['late','partial'].includes(docSt(i))).slice(0,5).forEach(i=>{const d=docDays(i);out.push({c:d<0?'red':'amber',ic:dT(i).ic,t:`${dLabel(i)} ${i.emp.name} ${d<0?'منتهية منذ '+(-d)+' يوم':'تنتهي بعد '+d+' يوم'}`,s:fd(i.expiry)+' · '+hijS(i.expiry),a:`openEmp('${i.emp._id}')`,b:'عرض'})});
   emps().filter(e=>e.status==='leave'&&e.leaveDate&&dBetween(e.leaveDate,today())>60).forEach(e=>out.push({c:'purple',ic:'🌴',t:`${e.name} في إجازة من ${durationTxt(dBetween(e.leaveDate,today()))}`,s:'لو رجع سجّل عودته عشان تنحسب رواتبه',a:`toggleLeave('${e._id}')`,b:'عودة'}));
-  activeEmps().filter(e=>!docsOf(e).some(i=>i.type==='iqama')).slice(0,3).forEach(e=>out.push({c:'blue',ic:'🪪',t:`إقامة ${e.name} غير مسجلة`,s:'سجلها عشان ننبهك قبل انتهائها',a:`editDoc(null,'${e._id}','iqama')`,b:'إضافة'}));
+  if(isOwner())activeEmps().filter(e=>!docsOf(e).some(i=>i.type==='iqama')).slice(0,3).forEach(e=>out.push({c:'blue',ic:'🪪',t:`إقامة ${e.name} غير مسجلة`,s:'سجلها عشان ننبهك قبل انتهائها',a:`editDoc(null,'${e._id}','iqama')`,b:'إضافة'}));
   activeEmps().filter(e=>!e.photo).slice(0,2).forEach(e=>out.push({c:'grey',ic:'📷',t:`أضف صورة ${e.name}`,s:'الصور تسهل القراءة بنظرة',a:`editEmp('${e._id}')`,b:'إضافة'}));
   if(!out.length)return `<div class="card" style="margin-top:14px">✅ ما فيه شي يحتاج انتباهك</div>`;
   return `<h2 class="sec">🤖 يحتاج انتباهك <span class="small muted">${out.length}</span></h2>${out.slice(0,8).map(x=>`<div class="asst" style="--c:var(--${x.c})"><div class="ic">${x.ic}</div><div class="tx"><b>${esc(x.t)}</b><small>${esc(x.s)}</small></div><button class="btn sm sec2" onclick="${x.a}">${x.b}</button></div>`).join('')}`}
@@ -521,7 +537,7 @@ function openEmp(id){const e=S.employees[id];if(!e)return;const y=curY();const s
   <div class="small muted" style="margin-top:12px">${y}</div>${yearStrip(e,y)}<div class="small muted" style="margin-top:6px">${y-1}</div>${yearStrip(e,y-1)}
   <div class="btns">${e.status!=='left'?`<button class="btn gd" onclick="payEmp('${id}'${L[0]?`,${L[0].y},${L[0].m}`:''})">💰 صرف راتب</button><button class="btn sec2" onclick="newLoan('${id}')">💸 سلفة</button><button class="btn sec2" onclick="toggleLeave('${id}')">${e.status==='leave'?'▶️ عودة للعمل':'🌴 إجازة'}</button>`:''}
    <button class="btn ghost" onclick="editEmp('${id}')">✏️ تعديل</button><button class="btn ghost" onclick="repType='emp';repEmp='${id}';closeModal();go('rep')">🖨️ كشف حساب</button>${e.phone?`<a class="btn wa" target="_blank" href="${waLink(e.phone,'السلام عليكم '+e.name)}">واتساب</a>`:''}</div>
-  <h4 style="margin:18px 0 8px">🪪 المستندات</h4>${ds.map(i=>docRow(i)).join('')||'<p class="small muted">ما فيه مستندات</p>'}<div class="btns" style="margin-top:4px"><button class="btn sm sec2" onclick="editDoc(null,'${id}')">➕ مستند</button></div>
+  ${isOwner()?'':'<!--'}<h4 style="margin:18px 0 8px">🪪 المستندات</h4>${ds.map(i=>docRow(i)).join('')||'<p class="small muted">ما فيه مستندات</p>'}<div class="btns" style="margin-top:4px"><button class="btn sm sec2" onclick="editDoc(null,'${id}')">➕ مستند</button></div>${isOwner()?'':'-->'}
   ${(e.leaves||[]).length?`<h4 style="margin:18px 0 8px">🌴 الإجازات السابقة</h4>${e.leaves.map(l=>`<div class="small">من ${fd(l.from)} إلى ${fd(l.to)} (${durationTxt(dBetween(l.from,l.to))})</div>`).join('')}`:''}
   <h4 style="margin:18px 0 8px">💰 آخر الدفعات</h4>${all.length?`<div class="tbl"><table><tr><th>الشهر</th><th>المبلغ</th><th>التاريخ</th><th>الطريقة</th><th></th></tr>${all.slice(0,24).map(s=>`<tr><td>${mName(+s.year,+s.month)}</td><td><b>${nf(s.amount)}</b>${+s.loanDeduct?`<br><small class="muted">خصم سلفة ${nf(s.loanDeduct)}</small>`:''}</td><td>${fd(s.date)}</td><td>${s.method==='transfer'?'🏦 '+esc(s.transferBank||''):'💵'}</td><td><button class="btn sm warn" onclick="delSal('${s._id}')">🗑️</button></td></tr>`).join('')}</table></div>`:'<p class="small muted">لا يوجد</p>'}`)}
 function docRow(i){const d=docDays(i);const st=docSt(i);return `<div class="emp st-${st}" style="grid-template-columns:44px 1fr auto;cursor:pointer" onclick="editDoc('${i._id}')"><div class="ph" style="width:44px;height:44px;font-size:22px">${dT(i).ic}</div>
@@ -549,7 +565,7 @@ async function saveEmp(id){const name=v('eName');const salary=+toEn(v('eSal'));i
   const o={...old,name,role:v('eRole'),salary,startDate:v('eStart'),nationality:v('eNat'),phone:v('ePhone'),notes:v('eNotes'),photo:tmpPhoto||'',status,endDate:status==='left'?(v('eEnd')||today()):''};
   if(status==='leave'&&!o.leaveDate)o.leaveDate=today();if(status!=='leave')delete o.leaveDate;
   o.renewPid=await syncPerson({...o,_id:eid});await dbSet('employees/'+eid,o);toast('تم الحفظ ✓');closeModal();setTimeout(()=>openEmp(eid),300)}
-async function syncPerson(e){try{let p=personOf(e);const pid=p?p._id:uid('p');
+async function syncPerson(e){if(!isOwner())return e.renewPid||'';try{let p=personOf(e);const pid=p?p._id:uid('p');
   const o={...(p?clean(p):{createdAt:Date.now(),rel:'worker'}),name:e.name,job:e.role||'',nationality:e.nationality||(p&&p.nationality)||'',phone:e.phone||(p&&p.phone)||'',payEmp:e._id};if(e.photo)o.photo=e.photo;
   if(e.status==='left')o.notes=[(p&&p.notes||'').replace(/ · ?ترك العمل.*$/,''),'ترك العمل'].filter(Boolean).join(' · ');
   await rSet('people/'+pid,o);return pid}catch(x){console.warn(x);return e.renewPid||''}}
@@ -660,9 +676,14 @@ async function saveFile(filename,data){const ext=filename.split('.').pop().toLow
 const arr=x=>Array.isArray(x)?x.filter(Boolean):Object.values(x||{}).filter(Boolean);
 let OLD=null;
 async function migrate(){openModal(`<h3>📥 نقل البيانات<button class="x" onclick="closeModal()">×</button></h3><p><span class="spin"></span> جاري قراءة النظام القديم...</p>`);
-  try{const r=await fetch(OLD_URL+'.json');if(!r.ok)throw new Error('HTTP '+r.status);OLD=await r.json();if(!OLD)throw new Error('فاضي')}catch(e){openModal(`<h3>📥 نقل البيانات<button class="x" onclick="closeModal()">×</button></h3><p>تعذر قراءة النظام القديم (${esc(e.message)}). لو قفلته، افتحه مؤقتاً وارجع.</p>`);return}
+  let src='server';
+  try{const r=await fetch(OLD_URL+'.json');if(!r.ok)throw new Error('HTTP '+r.status);OLD=await r.json();if(!OLD)throw new Error('فاضي')}
+  catch(e){let loc=null;try{loc=JSON.parse(localStorage.getItem('payroll_v2')||'null')}catch(x){}
+    if(loc&&arr(loc.employees).length){OLD=loc;src='device'}
+    else{openModal(`<h3>📥 نقل البيانات<button class="x" onclick="closeModal()">×</button></h3><p>النظام القديم مقفول، وما لقيت نسخة منه محفوظة على هذا الجهاز.</p><p class="small muted">جرب من الجوال أو الكمبيوتر اللي كنت تستخدم عليه النظام القديم، أو افتح قفل قاعدة البيانات القديمة مؤقتاً.</p>`);return}}
   const E=arr(OLD.employees),Sa=arr(OLD.salaries),Lo=arr(OLD.loans),Do=arr(OLD.docs);const done=E.filter(e=>S.employees['e'+e.id]).length;
   openModal(`<h3>📥 نقل البيانات من النظام القديم<button class="x" onclick="closeModal()">×</button></h3>
+  ${src==='device'?`<div class="qbox" style="background:var(--amberSoft);border-color:var(--amber)"><b style="color:var(--amber)">📱 النسخة المحفوظة على هذا الجهاز</b><div class="small">النظام القديم مقفول، فبنقل من آخر نسخة حفظها هذا الجهاز. تأكد إن آخر الرواتب والسلف اللي سجلتها موجودة تحت قبل ما تنقل. وتقدر تعيد النقل بعدين من جهاز ثاني وما يتكرر شي.</div></div>`:''}
   <div class="rsum"><div><span>الموظفين</span><b>${E.length}</b></div><div><span>دفعات الرواتب</span><b>${Sa.length}</b></div><div><span>السلف</span><b>${Lo.length}</b></div><div><span>المستندات</span><b>${Do.length}</b></div><div><span>البنوك والمستفيدين</span><b>${arr(OLD.banks).length+arr(OLD.beneficiaries).length}</b></div></div>
   ${E.map(e=>`<div class="emp st-paid" style="cursor:default">${phHTML(e,46)}<div><b>${esc(e.name)}</b><small>${esc(e.role||'')} · ${money(e.salary)} · ${Sa.filter(s=>s.empId==e.id).length} دفعة</small></div><div></div></div>`).join('')}
   ${done?`<p class="small" style="color:var(--amber)">سبق نقلت ${done} منهم. إعادة النقل تحدّث البيانات بدون تكرار.</p>`:''}
