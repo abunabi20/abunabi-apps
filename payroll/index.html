@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="الرواتب">
+<meta name="theme-color" content="#0f1f33">
+<title>نظام الرواتب</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../shared/firebase-config.js"></script>
+<style>
+:root{
+  --bg:#f4f2ec;--card:#ffffff;--card2:#faf8f3;--ink:#1f2d2b;--muted:#6b7a76;--line:#e7e1d4;
+  --pri:#1e3a5f;--pri2:#2f5d8a;--priSoft:#e6edf6;--gold:#b8892b;--gold2:#d9b45a;--goldSoft:#f8efd9;
+  --amber:#c27a12;--amberSoft:#fdf2df;
+  --green:#15803d;--greenSoft:#e5f5ea;
+  --red:#c2410c;--redSoft:#fdebe4;
+  --blue:#2563eb;--blueSoft:#e6eefc;
+  --purple:#7c3aed;--purpleSoft:#f0e9fe;
+  --grey:#8a948f;--greySoft:#eeefec;
+  --r:18px;--sh:0 6px 22px rgba(31,45,43,.07);
+}
+[data-theme=dark]{
+  --bg:#0c1522;--card:#142033;--card2:#18263b;--ink:#e6eeeb;--muted:#93a39e;--line:#263650;
+  --pri:#8fb6e6;--pri2:#5f8fc7;--priSoft:#1b2a40;--gold:#e0b95a;--gold2:#f0d28a;--goldSoft:#3a2f17;
+  --amber:#f2b34c;--amberSoft:#3a2d14;--green:#4ade80;--greenSoft:#163322;
+  --red:#fb8a5c;--redSoft:#3d1f15;--blue:#7aa7ff;--blueSoft:#18264a;
+  --purple:#b69cff;--purpleSoft:#2a2148;--grey:#9aa5a1;--greySoft:#242f2c;
+  --sh:0 6px 22px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:15px;line-height:1.55}
+body{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+button,input,select,textarea{font-family:inherit;font-size:15px}
+.top{background:linear-gradient(120deg,#0f1f33,#1e3a5f 60%,#2a4d78);color:#fff;padding:calc(18px + env(safe-area-inset-top)) 18px 54px}
+[data-theme=dark] .top{background:linear-gradient(120deg,#08111d,#0f1f33 60%,#1a3150)}
+.top .row{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1100px;margin:auto}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:26px}
+.brand h1{margin:0;font-size:20px;font-weight:700}.brand p{margin:0;opacity:.85;font-size:13px}
+.tops{display:flex;gap:6px;align-items:center}
+.sync{font-size:12px;background:rgba(255,255,255,.18);padding:6px 10px;border-radius:999px;white-space:nowrap}
+.ibtn{border:0;background:rgba(255,255,255,.18);color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:16px}
+nav#tabs{position:sticky;top:0;z-index:20;max-width:1100px;margin:-38px auto 0;padding:0 12px}
+.tabbar{display:flex;gap:6px;overflow-x:auto;background:var(--card);border-radius:16px;padding:6px;box-shadow:var(--sh);scrollbar-width:none}
+.tabbar::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;border:0;background:transparent;padding:9px 13px;border-radius:12px;color:var(--muted);font-weight:600;cursor:pointer;display:flex;gap:6px;align-items:center}
+.tab.on{background:var(--priSoft);color:var(--pri)}
+main{max-width:1100px;margin:auto;padding:16px 12px}
+h2.sec{font-size:17px;margin:22px 4px 10px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:var(--sh);border-top:4px solid var(--c);cursor:default}
+.kpi.clk{cursor:pointer}
+.kpi .i{font-size:20px}.kpi .l{color:var(--muted);font-size:13px}.kpi .v{font-size:21px;font-weight:700;margin-top:2px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:16px;margin-bottom:12px}
+.grid{display:grid;gap:12px}.g2{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}.g3{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;background:var(--s);color:var(--c);white-space:nowrap}
+.st-expired{--s:var(--redSoft);--c:var(--red)}
+.st-soon{--s:var(--amberSoft);--c:var(--amber)}
+.st-ok{--s:var(--greenSoft);--c:var(--green)}
+.st-renewing{--s:var(--blueSoft);--c:var(--blue)}
+.st-nodate,.st-arch{--s:var(--greySoft);--c:var(--grey)}
+.st-info{--s:var(--priSoft);--c:var(--pri)}
+.st-purple{--s:var(--purpleSoft);--c:var(--purple)}
+.btn{border:0;border-radius:12px;padding:9px 14px;font-weight:600;cursor:pointer;background:var(--pri);color:#fff;display:inline-flex;gap:6px;align-items:center;justify-content:center;text-decoration:none;font-size:14px}
+[data-theme=dark] .btn{color:#0b1626}
+.btn.sec2{background:var(--priSoft);color:var(--pri)}
+.btn.ghost{background:var(--greySoft);color:var(--ink)}
+.btn.warn{background:var(--redSoft);color:var(--red)}
+.btn.wa{background:#e3f6e8;color:#128c4a}
+.btn.sm{padding:6px 10px;font-size:13px;border-radius:10px}
+.btn:disabled{opacity:.55}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:14px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-weight:600;word-break:break-word}
+.muted{color:var(--muted)}.small{font-size:13px}.num{direction:ltr;unicode-bidi:embed}
+.divider{height:1px;background:var(--line);margin:12px 0}
+select,input,textarea{border:1.5px solid var(--line);border-radius:12px;padding:9px 11px;background:var(--card);color:var(--ink);width:100%;outline:none}
+select:focus,input:focus,textarea:focus{border-color:var(--pri2)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.filters select,.filters input{width:auto;flex:1 1 140px}
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:500}
+.form .full{grid-column:1/-1}
+.fsec{grid-column:1/-1;font-weight:700;color:var(--pri);margin-top:8px;font-size:15px}
+.hint{font-size:12px;color:var(--muted)}
+.seg{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg button{flex:0 0 auto;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:7px 12px;font-weight:600;cursor:pointer;font-size:13px}
+.seg button.on{background:var(--pri);border-color:var(--pri);color:#fff}
+[data-theme=dark] .seg button.on{color:#0b1626}
+.empty{text-align:center;color:var(--muted);padding:26px 10px}
+/* بطاقة المتابعة */
+.it{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;background:var(--card);border-radius:16px;padding:12px;box-shadow:var(--sh);cursor:pointer;border-right:5px solid var(--c);margin-bottom:10px;transition:.15s}
+.it:active{transform:scale(.99)}
+.av{width:52px;height:52px;border-radius:14px;background:var(--s);display:grid;place-items:center;font-size:26px;overflow:hidden;flex:0 0 auto;position:relative}
+.av img{width:100%;height:100%;object-fit:cover}
+.av .tb{position:absolute;bottom:-2px;left:-2px;background:var(--card);border-radius:8px;font-size:13px;padding:0 3px;line-height:18px}
+.it .mid{min-width:0}
+.it .mid b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .mid small{display:block;color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd{text-align:center;min-width:66px;background:var(--s);color:var(--c);border-radius:14px;padding:6px 8px}
+.cd .d{font-size:24px;font-weight:700;line-height:1.1}
+.cd small{font-size:11px;font-weight:600;display:block}
+.bar{height:7px;border-radius:9px;background:var(--greySoft);overflow:hidden;margin-top:6px}
+.bar>i{display:block;height:100%;background:var(--c)}
+.ghead{font-weight:700;color:var(--muted);font-size:13px;margin:16px 4px 8px;display:flex;align-items:center;gap:6px}
+/* البطل */
+.hero{background:linear-gradient(135deg,var(--s),var(--card));border-radius:24px;padding:18px;box-shadow:var(--sh);display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;cursor:pointer;border:2px solid var(--s)}
+.ring{width:132px;height:132px;position:relative}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .in{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--c)}
+.ring .in b{font-size:36px;line-height:1;display:block}
+.ring .in small{font-size:12px;font-weight:600}
+.hero h3{margin:0 0 4px;font-size:18px}.hero .bd{font-size:13px;color:var(--muted)}
+.clock{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.clock div{background:var(--card);border-radius:12px;padding:6px 10px;text-align:center;min-width:56px;box-shadow:var(--sh)}
+.clock b{display:block;font-size:20px;color:var(--c)}.clock span{font-size:11px;color:var(--muted)}
+@media(max-width:480px){.hero{grid-template-columns:1fr;justify-items:center;text-align:center}.clock{justify-content:center}}
+/* المساعد */
+.asst{display:flex;gap:10px;align-items:flex-start;background:var(--card);border-radius:14px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--sh);border-right:4px solid var(--c)}
+.asst .ic{font-size:20px}.asst .tx{flex:1}.asst small{color:var(--muted);display:block}
+/* الأشخاص */
+.pc{background:var(--card);border-radius:18px;box-shadow:var(--sh);padding:14px;cursor:pointer;display:flex;gap:12px;align-items:center}
+.pc .ph{width:64px;height:64px;border-radius:18px;background:var(--priSoft);display:grid;place-items:center;font-size:30px;overflow:hidden;flex:0 0 auto}
+.pc .ph img{width:100%;height:100%;object-fit:cover}
+.pc b{display:block;font-size:16px}.pc small{color:var(--muted);display:block;font-size:12.5px}
+.big-ph{width:100%;max-height:260px;object-fit:cover;border-radius:16px;margin-bottom:10px;background:var(--greySoft)}
+.gallery{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.gallery img{width:96px;height:96px;object-fit:cover;border-radius:12px;cursor:pointer;border:1px solid var(--line)}
+/* المودال */
+.modal{position:fixed;inset:0;background:rgba(10,20,18,.5);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.modal.hidden{display:none}
+.sheet{background:var(--bg);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-radius:24px 24px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom))}
+@media(min-width:760px){.modal{align-items:center}.sheet{border-radius:24px}}
+.sheet h3{margin:0 0 12px;font-size:18px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.x{border:0;background:var(--greySoft);color:var(--ink);width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;flex:0 0 auto}
+#toast{position:fixed;bottom:calc(90px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(200px);background:#1f2d2b;color:#fff;padding:11px 18px;border-radius:14px;z-index:80;transition:.25s;font-size:14px;max-width:90vw}
+#toast.on{transform:translateX(-50%) translateY(0)}
+/* زر الإضافة */
+.fab{position:fixed;left:18px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:40;display:flex;gap:10px}
+.fab button{border:0;border-radius:18px;height:56px;padding:0 18px;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 10px 26px rgba(30,58,95,.35);display:flex;gap:8px;align-items:center}
+.fab .cam{background:var(--pri);color:#fff}.fab .plus{background:var(--card);color:var(--pri);width:56px;padding:0;justify-content:center;font-size:26px}
+[data-theme=dark] .fab .cam{color:#0b1626}
+/* جداول وتقارير */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+th{color:var(--muted);font-weight:600;background:var(--card2)}
+.tbl{overflow-x:auto;border-radius:14px;border:1px solid var(--line);background:var(--card)}
+tfoot td{font-weight:700;background:var(--card2)}
+.hbars{display:flex;flex-direction:column;gap:7px}
+.hb{display:grid;grid-template-columns:110px 1fr 90px;gap:8px;align-items:center;font-size:12.5px}
+.hb .tr{height:12px;border-radius:6px;background:var(--greySoft);overflow:hidden}.hb .tr i{display:block;height:100%;background:linear-gradient(90deg,var(--pri2),var(--pri));border-radius:6px}
+.hb .tr i.red{background:linear-gradient(90deg,#fb923c,var(--red))}
+.vbars{display:flex;gap:6px;align-items:flex-end;height:150px;padding-top:10px}
+.vb{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;font-size:10.5px;color:var(--muted)}
+.vb i{width:100%;max-width:34px;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,var(--pri2),var(--pri));min-height:2px}
+.vb b{font-size:10px;color:var(--ink)}
+.rep{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:18px}
+.rhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-bottom:3px solid var(--pri);padding-bottom:10px;margin-bottom:14px}
+.rhead h2{margin:0;font-size:19px}.rhead small{color:var(--muted)}
+.rsum{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px}
+.rsum div{background:var(--card2);border-radius:12px;padding:10px;border:1px solid var(--line)}
+.rsum span{display:block;font-size:12px;color:var(--muted)}.rsum b{font-size:17px}
+.rfoot{margin-top:16px;font-size:11px;color:var(--muted);text-align:center;border-top:1px solid var(--line);padding-top:8px}
+.qbox{border:1.5px dashed var(--pri2);background:var(--priSoft);border-radius:14px;padding:12px;margin-bottom:12px}
+.qbox b{display:block;margin-bottom:6px;color:var(--pri)}
+.qbox li b,.qbox .small b{display:inline;margin:0}
+#aiTest{display:block;width:100%;font-weight:700;font-size:15px;margin-top:4px}
+.opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.opts button{border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
+.opts button img{width:22px;height:22px;border-radius:50%;object-fit:cover}
+.opts button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.prog{height:10px;background:var(--greySoft);border-radius:9px;overflow:hidden;margin:12px 0}.prog i{display:block;height:100%;width:0;background:var(--pri);transition:.3s}
+.spin{display:inline-block;width:18px;height:18px;border:3px solid var(--priSoft);border-top-color:var(--pri);border-radius:50%;animation:sp 1s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+.cal{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.cal .m{background:var(--card);border-radius:16px;box-shadow:var(--sh);padding:12px}
+.cal .m h4{margin:0 0 8px;font-size:15px;display:flex;justify-content:space-between}
+.cal .e{display:flex;gap:8px;align-items:center;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--line);cursor:pointer}
+.cal .e:last-child{border:0}.cal .e .dd{background:var(--s);color:var(--c);border-radius:8px;padding:1px 7px;font-weight:700;font-size:12px;min-width:30px;text-align:center}
+.score{font-size:42px;font-weight:700}
+.printonly{display:none}
+#login{position:fixed;inset:0;z-index:90;background:linear-gradient(140deg,#0f1f33,#1e3a5f 55%,#c9a84c);display:flex;align-items:center;justify-content:center;padding:20px}
+#login.hidden{display:none}
+.lbox{background:#fff;color:#1f2d2b;border-radius:26px;padding:28px 22px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.18);text-align:center}
+.lbox .logo{margin:0 auto 10px;background:#f8efd9;width:64px;height:64px;font-size:34px}
+.lbox h2{margin:4px 0 2px;font-size:20px}.lbox p{margin:0 0 18px;color:#6b7a76;font-size:13px}
+.lbox input{margin-bottom:10px;text-align:right;background:#fff;color:#1f2d2b;border-color:#e7e1d4}
+.lbox .btn{width:100%;padding:12px;font-size:15px;color:#fff;background:#1e3a5f}
+.lerr{color:#c2410c;font-size:13px;min-height:18px;margin-bottom:6px}
+@media print{
+  :root,[data-theme=dark]{--bg:#fff;--card:#fff;--card2:#f6f6f4;--ink:#111;--muted:#555;--line:#ddd;--sh:none}
+  body{background:#fff;padding:0}
+  .top,nav,.fab,#toast,.noprint,.modal{display:none!important}
+  main{padding:0;max-width:none}.rep{box-shadow:none;padding:0}
+  .printonly{display:block}
+  tr,.it{break-inside:avoid}
+}
+
+.logo{border:1.5px solid rgba(217,180,90,.6)}
+.gold{color:var(--gold)}
+.btn.gd{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1b1405}
+.kpi .v.sm{font-size:17px}
+.st-paid{--s:var(--greenSoft);--c:var(--green)}
+.st-partial{--s:var(--amberSoft);--c:var(--amber)}
+.st-late{--s:var(--redSoft);--c:var(--red)}
+.st-upcoming{--s:var(--blueSoft);--c:var(--blue)}
+.st-na,.st-future,.st-left{--s:var(--greySoft);--c:var(--grey)}
+.st-leave{--s:var(--purpleSoft);--c:var(--purple)}
+.st-waived{--s:var(--greySoft);--c:var(--grey)}
+.emp{display:grid;grid-template-columns:58px 1fr auto;gap:12px;align-items:center;background:var(--card);border-radius:16px;padding:12px;box-shadow:var(--sh);cursor:pointer;border-right:5px solid var(--c);margin-bottom:10px}
+.ph{width:58px;height:58px;border-radius:16px;background:var(--goldSoft);display:grid;place-items:center;font-size:28px;overflow:hidden;flex:0 0 auto;border:2px solid var(--s,transparent)}
+.ph img{width:100%;height:100%;object-fit:cover}
+.emp b{display:block;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.emp small{display:block;color:var(--muted);font-size:12.5px}
+.amt{text-align:center;min-width:84px}
+.amt .a{font-size:17px;font-weight:700}.amt small{font-size:11px;color:var(--muted);display:block}
+.yr{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-top:6px}
+.yr i{height:9px;border-radius:3px;background:var(--s);border:1px solid var(--c);opacity:.95}
+.yr i.st-na,.yr i.st-future{border-color:var(--line);background:transparent}
+.mx td,.mx th{text-align:center;padding:5px 1px;font-size:11px}
+.mx td.nm{text-align:right;white-space:nowrap;font-weight:600}
+.cell{display:block;border-radius:7px;padding:4px 2px;background:var(--s);color:var(--c);font-weight:700;font-size:10.5px;min-width:22px;cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--muted);margin:8px 0}
+.legend span{display:inline-flex;align-items:center;gap:4px}.legend i{width:12px;height:12px;border-radius:4px;background:var(--s);border:1px solid var(--c);display:inline-block}
+.mhead{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card);border-radius:16px;padding:10px 12px;box-shadow:var(--sh);margin-bottom:12px}
+.mhead b{font-size:17px}.mhead .ibtn2{border:0;background:var(--priSoft);color:var(--pri);width:38px;height:38px;border-radius:12px;font-size:18px;cursor:pointer}
+.prog2{height:12px;border-radius:9px;background:var(--greySoft);overflow:hidden;margin-top:8px}.prog2 i{display:block;height:100%;background:linear-gradient(90deg,var(--gold2),var(--gold))}
+.loan{background:var(--card);border-radius:16px;box-shadow:var(--sh);padding:12px 14px;margin-bottom:10px;border-right:5px solid var(--c)}
+.profile-h{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.profile-h .ph{width:86px;height:86px;border-radius:22px;font-size:40px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.netbox{background:var(--goldSoft);border-radius:14px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-top:6px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="row">
+    <div class="brand"><div class="logo">💼</div><div><h1>نظام الرواتب</h1><p id="bSub">الموظفين والرواتب والسلف</p></div></div>
+    <div class="tops"><button class="ibtn" onclick="toggleTheme()" title="الوضع الليلي">🌓</button><div class="sync" id="sync">⏳ جاري التحميل</div></div>
+  </div>
+</header>
+<nav id="tabs"><div class="tabbar" id="tabbar"></div></nav>
+<main id="main"><div class="empty">جاري تحميل البيانات...</div></main>
+<div class="fab noprint" id="fab"><button class="plus" onclick="editEmp()" title="موظف جديد">＋</button><button class="cam" onclick="PM={y:new Date().getFullYear(),m:new Date().getMonth()+1};go('pay')">💰 صرف الرواتب</button></div>
+<input type="file" id="photoFile" accept="image/*" hidden>
+<input type="file" id="restoreFile" accept=".json,application/json" hidden>
+<div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()"><div class="sheet" id="sheet"></div></div>
+<div id="toast"></div>
+<div id="login"><div class="lbox"><div class="logo">💼</div><h2>نظام الرواتب</h2><p>سجّل دخولك بإيميلك وكلمة المرور</p>
+<form id="lform"><input id="lemail" type="email" autocomplete="username" placeholder="الإيميل" dir="ltr" required>
+<input id="lpass" type="password" autocomplete="current-password" placeholder="كلمة المرور" dir="ltr" required>
+<div class="lerr" id="lerr"></div><button class="btn" type="submit" id="lbtn">دخول</button></form>
+<p style="margin:14px 0 0"><a href="#" id="lreset" style="color:#1e3a5f;font-size:13px">نسيت كلمة المرور؟</a></p></div></div>
+<script>
+/* ================= ثوابت ================= */
+const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const OLD_URL='https://salary-abunabi-default-rtdb.firebaseio.com/payroll';
+const ROLE_IC={'سائق':'🚗','خادمة':'🧺','طباخ':'👨‍🍳','حارس أمن':'💂','حارس':'💂','سكرتير':'🗂️','عامل نظافة':'🧹','مشرف':'📋','موظف إداري':'🖥️','راعي':'🐑','زوجة':'👩','مربية':'👶','عامل':'👷','مزارع':'🌾'};
+const DEF_ROLES=['سائق','خادمة','طباخ','حارس','راعي','عامل','مزارع','مربية','عامل نظافة'];
+const STATUS={active:{l:'على رأس العمل',ic:'✅',c:'green'},leave:{l:'في إجازة',ic:'🌴',c:'purple'},left:{l:'ترك العمل',ic:'🚪',c:'grey'}};
+const MST={paid:'مدفوع',partial:'جزئي',late:'متأخر',upcoming:'لم يحن',na:'غير مستحق',future:'قادم',leave:'إجازة',waived:'معفى'};
+const DOC_T={iqama:{l:'إقامة',ic:'🪪',alert:60},passport:{l:'جواز سفر',ic:'🛂',alert:30},work_permit:{l:'رخصة عمل',ic:'💼',alert:60},medical_ins:{l:'تأمين طبي',ic:'🏥',alert:30},driving_license:{l:'رخصة قيادة',ic:'🚘',alert:30},exit_reentry:{l:'تأشيرة خروج وعودة',ic:'✈️',alert:14},other:{l:'أخرى',ic:'📌',alert:30}};
+const PR_TYPES={'إقامة':'iqama','اقامة':'iqama','اقامه':'iqama','هوية مقيم':'iqama','جواز سفر':'passport','جواز':'passport','رخصة قيادة':'driving_license','تصريح عمل':'work_permit','رخصة عمل':'work_permit','تأمين صحي':'medical_ins','تأمين طبي':'medical_ins','خروج وعودة':'exit_reentry','تأشيرة خروج وعودة':'exit_reentry'};
+const TABS=[['home','الرئيسية','🏠'],['pay','صرف الرواتب','💰'],['emps','الموظفون','👥'],['loans','السلف','💸'],['docs','المستندات','🪪'],['rep','التقارير','📊'],['set','الإعدادات','⚙️']];
+const COLS=['employees','salaries','loans','meta'];
+
+/* ================= الحالة ================= */
+const S={employees:{},salaries:{},loans:{},meta:{}};const R={people:{},items:{}};
+let base=null,rbase=null,fbUser=null,unsubs=[],tab='home';
+let PM={y:new Date().getFullYear(),m:new Date().getMonth()+1};
+let EF={st:'current',q:''};let LF='open';
+let repType='month',repY=new Date().getFullYear(),repM=new Date().getMonth()+1,repEmp='';
+
+/* ================= أدوات ================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r2=n=>Math.round((+n||0)*100)/100;
+const nf=n=>r2(n).toLocaleString('en-US',{maximumFractionDigits:2});
+const money=n=>nf(n)+' ر.س';
+const pd=s=>{if(!s)return null;const[y,m,d]=String(s).split('-').map(Number);return new Date(y,(m||1)-1,d||1)};
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const today=()=>iso(new Date());
+const addMonths=(d,n)=>{const r=new Date(d.getFullYear(),d.getMonth()+n,1);const last=new Date(r.getFullYear(),r.getMonth()+1,0).getDate();r.setDate(Math.min(d.getDate(),last));return r};
+const addDays=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r};
+const fd=s=>{if(!s)return '-';const d=pd(s);return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()};
+const dBetween=(a,b)=>Math.round((pd(b)-pd(a))/864e5);
+const sum=(a,f=x=>x)=>a.reduce((s,x)=>s+(+f(x)||0),0);
+const clean=o=>{const r={...o};delete r._id;return r};
+const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const v=id=>{const e=document.getElementById(id);return e?e.value.trim():''};
+const toEn=s=>String(s??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+const norm=s=>String(s||'').toLowerCase().replace(/[ً-ْـ]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').trim();
+const ymKey=(y,m)=>y*12+(m-1);
+const curY=()=>new Date().getFullYear(),curM=()=>new Date().getMonth()+1;
+const mName=(y,m)=>MONTHS[m-1]+' '+y;
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800)}
+const META=()=>S.meta.main||{};
+const ownerName=()=>META().ownerName||'محمد نبي الهاجري';
+const payDay=()=>+(META().payDay||28);
+const HF=(()=>{try{return new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn',{day:'numeric',month:'numeric',year:'numeric'})}catch(e){return null}})();
+function g2hParts(d){if(!HF)return null;const p={};HF.formatToParts(d).forEach(x=>{if(x.type==='year')p.y=parseInt(x.value);if(x.type==='month')p.m=parseInt(x.value);if(x.type==='day')p.d=parseInt(x.value)});return p}
+const hijS=s=>{const p=s&&g2hParts(pd(s));return p?`${String(p.d).padStart(2,'0')}/${String(p.m).padStart(2,'0')}/${p.y}هـ`:''};
+const hijLong=s=>{try{return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn',{day:'numeric',month:'long',year:'numeric'}).format(pd(s))}catch(e){return ''}};
+function h2g(y,m,d){y=+y;m=+m;d=+d;if(!HF||!y||!m||!d)return null;const ap=new Date(622,6,16);ap.setDate(ap.getDate()+Math.round((y-1)*354.367+(m-1)*29.5306+d-1));
+  for(let k=-25;k<=25;k++){const t=addDays(ap,k);const p=g2hParts(t);if(p.y===y&&p.m===m&&p.d===d)return iso(t)}if(d===30)return h2g(y,m,29);return null}
+function parseHijriText(t){const m=toEn(t).match(/(\d{1,4})\D+(\d{1,2})\D+(\d{1,4})/);if(!m)return null;const a=+m[1],b=+m[2],c=+m[3];if(a>1300)return h2g(a,b,c);if(c>1300)return h2g(c,b,a);return null}
+function durationTxt(days){days=Math.max(0,days);const y=Math.floor(days/365),m=Math.floor(days%365/30),d=days%365%30;return [y?y+' سنة':'',m?m+' شهر':'',(!y&&d)?d+' يوم':''].filter(Boolean).join(' و ')||'اليوم'}
+function waLink(phone,text){let x=String(phone||'').replace(/\D/g,'');if(x.startsWith('00'))x=x.slice(2);if(x.startsWith('05'))x='966'+x.slice(1);else if(x.startsWith('5')&&x.length===9)x='966'+x;return 'https://wa.me/'+x+'?text='+encodeURIComponent(text)}
+
+/* ================= قاعدة البيانات ================= */
+function ref(path){const[c,id]=path.split('/');return base.collection(c).doc(id)}
+async function dbSet(path,data){if(!base){toast('سجّل الدخول أولاً');throw new Error('nodb')}
+  try{await ref(path).set(JSON.parse(JSON.stringify(data)))}catch(e){toast('تعذر الحفظ: '+(e.code||e.message||'خطأ'));throw e}}
+async function dbDel(path){try{await ref(path).delete()}catch(e){toast('تعذر الحذف');throw e}}
+async function rSet(path,data){const[c,id]=path.split('/');await rbase.collection(c).doc(id).set(JSON.parse(JSON.stringify(data)))}
+async function rDel(path){const[c,id]=path.split('/');await rbase.collection(c).doc(id).delete()}
+let rq=0;function schedule_render(){cancelAnimationFrame(rq);rq=requestAnimationFrame(render)}
+
+const fb=firebase.initializeApp(window.FIREBASE_CONFIG);
+const auth=firebase.auth();const fs=firebase.firestore();
+try{fs.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+const AUTH_ERR={'auth/invalid-credential':'الإيميل أو كلمة المرور غير صحيحة','auth/wrong-password':'كلمة المرور غير صحيحة','auth/user-not-found':'الإيميل غير مسجل','auth/invalid-email':'صيغة الإيميل غير صحيحة','auth/too-many-requests':'محاولات كثيرة، انتظر قليلاً وحاول مرة ثانية','auth/network-request-failed':'تأكد من اتصال الإنترنت'};
+$('#lform').addEventListener('submit',async e=>{e.preventDefault();$('#lerr').textContent='';$('#lbtn').disabled=true;$('#lbtn').textContent='جاري الدخول...';
+  try{await auth.signInWithEmailAndPassword(v('lemail'),$('#lpass').value)}catch(err){$('#lerr').textContent=AUTH_ERR[err.code]||('تعذر الدخول: '+err.code)}
+  $('#lbtn').disabled=false;$('#lbtn').textContent='دخول'});
+$('#lreset').addEventListener('click',async e=>{e.preventDefault();const em=v('lemail');if(!em){$('#lerr').textContent='اكتب إيميلك أولاً';return}
+  try{await auth.sendPasswordResetEmail(em);$('#lerr').style.color='#15803d';$('#lerr').textContent='أرسلنا رابط تغيير كلمة المرور على إيميلك'}catch(err){$('#lerr').textContent=AUTH_ERR[err.code]||err.code}});
+async function logout(){if(await ask('تسجيل الخروج من هذا الجهاز؟','خروج'))auth.signOut()}
+auth.onAuthStateChanged(u=>{
+  fbUser=u;unsubs.forEach(f=>f());unsubs=[];
+  if(!u){base=null;COLS.forEach(c=>S[c]={});$('#login').classList.remove('hidden');$('#sync').textContent='🔒 غير مسجل';return}
+  $('#login').classList.add('hidden');$('#sync').textContent='⏳ جاري التحميل';
+  base=fs.collection('apps').doc('payroll');rbase=fs.collection('apps').doc('renewals');
+  const ok=new Set();const timer=setTimeout(()=>{if(ok.size<COLS.length)$('#sync').textContent='⚠️ بدون اتصال، يعرض آخر نسخة'},10000);
+  COLS.forEach(c=>{unsubs.push(base.collection(c).onSnapshot({includeMetadataChanges:true},snap=>{
+      S[c]=Object.fromEntries(snap.docs.map(d=>[d.id,{...d.data(),_id:d.id}]));
+      if(!snap.metadata.fromCache)ok.add(c);
+      if(ok.size===COLS.length){clearTimeout(timer);$('#sync').textContent=snap.metadata.hasPendingWrites?'⏳ جاري الحفظ':'✅ متزامن'}
+      schedule_render()},err=>{clearTimeout(timer);$('#sync').textContent=err.code==='permission-denied'?'⛔ هذا الحساب ليس له صلاحية':'⚠️ خطأ في الاتصال';schedule_render()}))});
+  ['people','items'].forEach(c=>unsubs.push(rbase.collection(c).onSnapshot(snap=>{R[c]=Object.fromEntries(snap.docs.map(d=>[d.id,{...d.data(),_id:d.id}]));schedule_render()},()=>{})));
+});
+
+/* ================= منطق الرواتب ================= */
+const emps=()=>Object.values(S.employees).sort((a,b)=>(a.order??999)-(b.order??999)||String(a.name).localeCompare(b.name,'ar'));
+const sals=()=>Object.values(S.salaries);
+const loans=()=>Object.values(S.loans);
+const eIc=e=>ROLE_IC[e.role]||'👤';
+const phHTML=(e,sz)=>`<div class="ph"${sz?` style="width:${sz}px;height:${sz}px"`:''}>${e&&e.photo?`<img src="${e.photo}" alt="">`:eIc(e||{})}</div>`;
+function paidFor(eid,y,m){return sals().filter(s=>s.empId===eid&&+s.year===y&&+s.month===m)}
+function loanBal(eid){return sum(loans().filter(l=>l.empId===eid&&l.status!=='paid'),l=>(+l.amount||0)-(+l.repaid||0))}
+function firstRecord(eid){const a=sals().filter(s=>s.empId===eid);if(!a.length)return null;return a.reduce((mn,s)=>Math.min(mn,ymKey(+s.year,+s.month)),1e9)}
+function inLeave(e,y,m){const mid=iso(new Date(y,m-1,15));
+  for(const l of e.leaves||[])if(l.from&&mid>=l.from&&(!l.to||mid<=l.to))return true;
+  if(e.status==='leave'&&e.leaveDate&&mid>=e.leaveDate)return true;return false}
+function monthState(e,y,m){const k=ymKey(y,m),now=ymKey(curY(),curM());const ps=paidFor(e._id,y,m);const p=sum(ps,s=>s.amount);const sal=+e.salary||0;
+  if(p>0&&p>=sal-0.5)return 'paid';if(p>0)return 'partial';
+  if((META().waived||{})[e._id+'_'+y+'_'+m])return 'waived';
+  const st=e.startDate?pd(e.startDate):null;let startK=st?ymKey(st.getFullYear(),st.getMonth()+1):null;const fr=firstRecord(e._id);
+  if(fr!=null)startK=startK==null?fr:Math.max(startK,fr);
+  if(startK==null||k<startK)return 'na';
+  if(e.status==='left'&&e.endDate){const en=pd(e.endDate);if(k>ymKey(en.getFullYear(),en.getMonth()+1))return 'na'}
+  if(inLeave(e,y,m))return 'leave';
+  if(k>now)return 'future';
+  if(k===now&&new Date().getDate()<payDay())return 'upcoming';
+  return 'late'}
+const dueAmt=(e,y,m)=>Math.max(0,(+e.salary||0)-sum(paidFor(e._id,y,m),s=>s.amount));
+function lateMonths(e){const out=[];if(e.status==='left'&&!e.endDate)return out;const now=ymKey(curY(),curM());
+  for(let k=now-24;k<=now;k++){const y=Math.floor(k/12),m=k%12+1;const st=monthState(e,y,m);if(st==='late'||st==='partial'&&k<now)out.push({y,m,st,due:dueAmt(e,y,m)})}return out}
+const activeEmps=()=>emps().filter(e=>e.status!=='left');
+/* مستندات العامل من برنامج الانتهاءات */
+function personOf(e){return e.renewPid&&R.people[e.renewPid]||Object.values(R.people).find(p=>p.src==='payroll:'+(e.oldId??'x')||p.payEmp===e._id)||null}
+function docsOf(e){const p=personOf(e);if(!p)return [];return Object.values(R.items).filter(i=>i.ownerKind==='person'&&i.ownerId===p._id&&i.state!=='archived'&&i.expiry)}
+const dT=i=>DOC_T[i.type]||{l:i.title||'مستند',ic:'📌',alert:30};
+const dLabel=i=>i.type==='other'||!DOC_T[i.type]?(i.title||'مستند'):DOC_T[i.type].l;
+function docDays(i){return dBetween(today(),i.expiry)}
+function docSt(i){if(i.state==='renewing')return 'upcoming';const d=docDays(i);if(d<0)return 'late';if(d<=+(i.alert??dT(i).alert))return 'partial';return 'paid'}
+const allDocs=()=>emps().flatMap(e=>docsOf(e).map(i=>({...i,emp:e}))).sort((a,b)=>a.expiry.localeCompare(b.expiry));
+
+/* ================= العرض ================= */
+function render(){if(!fbUser)return;
+  $('#tabbar').innerHTML=TABS.map(([k,l,i])=>`<button class="tab ${tab===k?'on':''}" onclick="go('${k}')">${i} ${l}</button>`).join('');
+  const f={home:vHome,pay:vPay,emps:vEmps,loans:vLoans,docs:vDocs,rep:vRep,set:vSet}[tab];$('#main').innerHTML=f();
+  const lateN=activeEmps().filter(e=>lateMonths(e).length).length;$('#bSub').textContent=lateN?`${lateN} موظف عليه رواتب متأخرة`:'كل الرواتب مصروفة ✓';
+  $('#fab').style.display=['home','pay','emps'].includes(tab)?'':'none'}
+function go(t){tab=t;render();window.scrollTo({top:0,behavior:'smooth'})}
+function kpi(i,l,val,c,click,sm){return`<div class="kpi ${click?'clk':''}" style="--c:var(--${c})" ${click?`onclick="${click}"`:''}><div class="i">${i}</div><div class="l">${l}</div><div class="v ${sm?'sm':''}">${val}</div></div>`}
+function legendHTML(){return `<div class="legend">${['paid','partial','late','upcoming','leave','na'].map(k=>`<span class="st-${k}"><i></i>${MST[k]}</span>`).join('')}</div>`}
+function yearStrip(e,y){return `<div class="yr">${Array.from({length:12},(_,i)=>`<i class="st-${monthState(e,y,i+1)}" title="${MONTHS[i]}: ${MST[monthState(e,y,i+1)]}"></i>`).join('')}</div>`}
+
+/* ---------- الرئيسية ---------- */
+function vHome(){
+  if(!Object.keys(S.employees).length)return welcome();
+  const y=curY(),m=curM();const A=activeEmps().filter(e=>e.status==='active');
+  const due=A.filter(e=>!['na','future'].includes(monthState(e,y,m)));const paidN=due.filter(e=>monthState(e,y,m)==='paid').length;
+  const monthTotal=sum(A,e=>e.salary);const paidThis=sum(sals().filter(s=>+s.year===y&&+s.month===m),s=>s.amount);
+  const lateAll=activeEmps().flatMap(e=>lateMonths(e).map(x=>({...x,e})));const lateAmt=sum(lateAll,x=>x.due);
+  const lb=sum(loans().filter(l=>l.status!=='paid'),l=>(+l.amount||0)-(+l.repaid||0));
+  const docsSoon=allDocs().filter(i=>['late','partial'].includes(docSt(i)));
+  const pct=due.length?Math.round(paidN/due.length*100):100;const C=2*Math.PI*56;
+  const yearPaid=sum(sals().filter(s=>+s.year===y),s=>s.amount);
+  return `<div class="hero st-${pct===100?'paid':new Date().getDate()>=payDay()?'late':'upcoming'}" onclick="go('pay')">
+   <div class="ring"><svg viewBox="0 0 132 132"><circle cx="66" cy="66" r="56" fill="none" stroke="var(--greySoft)" stroke-width="12"/><circle cx="66" cy="66" r="56" fill="none" stroke="var(--c)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-pct/100)}"/></svg>
+    <div class="in"><div><b>${paidN}/${due.length}</b><small>استلموا</small></div></div></div>
+   <div><div class="small muted">💰 رواتب ${mName(y,m)}</div><h3>${pct===100?'كل الرواتب مصروفة ✅':`باقي ${due.length-paidN} لم يستلموا`}</h3>
+   <div class="bd">صُرف ${money(paidThis)} من ${money(monthTotal)}${new Date().getDate()<payDay()?` · موعد الصرف يوم ${payDay()}`:''}</div>
+   <div class="prog2"><i style="width:${monthTotal?Math.min(100,paidThis/monthTotal*100):0}%"></i></div></div></div>
+  <h2 class="sec">📌 نظرة سريعة</h2><div class="kpis">
+   ${kpi('👥','على رأس العمل',A.length,'green',"EF.st='active';go('emps')")}
+   ${kpi('🌴','في إجازة',emps().filter(e=>e.status==='leave').length,'purple',"EF.st='leave';go('emps')")}
+   ${kpi('⚠️','رواتب متأخرة',lateAll.length?`${lateAll.length} شهر`:'لا يوجد','red',"repType='late';go('rep')")}
+   ${kpi('🧾','مبلغ متأخر',money(lateAmt),'red',"repType='late';go('rep')",1)}
+   ${kpi('💸','سلف قائمة',money(lb),'amber',"go('loans')",1)}
+   ${kpi('🪪','مستندات تحتاج تجديد',docsSoon.length,docsSoon.length?'amber':'green',"go('docs')")}
+   ${kpi('📅','كلفة شهرية',money(monthTotal),'blue',null,1)}
+   ${kpi('📊','مدفوع '+y,money(yearPaid),'purple',"repType='year';go('rep')",1)}</div>
+  ${smartHTML()}
+  <h2 class="sec">🗓️ سجل ${y} لكل موظف</h2>${legendHTML()}${matrix(y,true)}`}
+function welcome(){return `<div class="card" style="text-align:center;padding:30px 18px"><div style="font-size:54px">💼</div><h2 style="margin:6px 0">نظام الرواتب الجديد</h2>
+  <p class="muted">انقل بياناتك من النظام القديم بضغطة: الموظفين بصورهم، وكل الرواتب والسلف والمستندات. وقبل النقل بتنزل لك نسخة احتياطية كاملة.</p>
+  <div class="btns" style="justify-content:center"><button class="btn gd" onclick="migrate()">📥 نقل البيانات من النظام القديم</button><button class="btn sec2" onclick="editEmp()">➕ أو ابدأ بموظف جديد</button></div></div>`}
+function smartHTML(){const out=[];const y=curY(),m=curM();
+  activeEmps().forEach(e=>{const L=lateMonths(e);if(L.length)out.push({c:'red',ic:'⚠️',t:`${e.name}: ${L.length===1?'راتب '+mName(L[0].y,L[0].m)+' ما انصرف':L.length+' رواتب ما انصرفت'}`,s:`المبلغ ${money(sum(L,x=>x.due))} · ${L.slice(0,4).map(x=>MONTHS[x.m-1]).join('، ')}${L.length>4?'...':''}`,a:`payEmp('${e._id}',${L[0].y},${L[0].m})`,b:'صرف'})});
+  loans().filter(l=>l.status!=='paid').forEach(l=>{const e=S.employees[l.empId];const bal=(+l.amount||0)-(+l.repaid||0);const age=dBetween(l.date||today(),today());
+    if(age>90)out.push({c:'amber',ic:'💸',t:`سلفة ${e?e.name:''} قائمة من ${durationTxt(age)}`,s:`الباقي ${money(bal)} من ${money(l.amount)}`,a:`repayLoan('${l._id}')`,b:'سداد'})});
+  allDocs().filter(i=>['late','partial'].includes(docSt(i))).slice(0,5).forEach(i=>{const d=docDays(i);out.push({c:d<0?'red':'amber',ic:dT(i).ic,t:`${dLabel(i)} ${i.emp.name} ${d<0?'منتهية منذ '+(-d)+' يوم':'تنتهي بعد '+d+' يوم'}`,s:fd(i.expiry)+' · '+hijS(i.expiry),a:`openEmp('${i.emp._id}')`,b:'عرض'})});
+  emps().filter(e=>e.status==='leave'&&e.leaveDate&&dBetween(e.leaveDate,today())>60).forEach(e=>out.push({c:'purple',ic:'🌴',t:`${e.name} في إجازة من ${durationTxt(dBetween(e.leaveDate,today()))}`,s:'لو رجع سجّل عودته عشان تنحسب رواتبه',a:`toggleLeave('${e._id}')`,b:'عودة'}));
+  activeEmps().filter(e=>!docsOf(e).some(i=>i.type==='iqama')).slice(0,3).forEach(e=>out.push({c:'blue',ic:'🪪',t:`إقامة ${e.name} غير مسجلة`,s:'سجلها عشان ننبهك قبل انتهائها',a:`editDoc(null,'${e._id}','iqama')`,b:'إضافة'}));
+  activeEmps().filter(e=>!e.photo).slice(0,2).forEach(e=>out.push({c:'grey',ic:'📷',t:`أضف صورة ${e.name}`,s:'الصور تسهل القراءة بنظرة',a:`editEmp('${e._id}')`,b:'إضافة'}));
+  if(!out.length)return `<div class="card" style="margin-top:14px">✅ ما فيه شي يحتاج انتباهك</div>`;
+  return `<h2 class="sec">🤖 يحتاج انتباهك <span class="small muted">${out.length}</span></h2>${out.slice(0,8).map(x=>`<div class="asst" style="--c:var(--${x.c})"><div class="ic">${x.ic}</div><div class="tx"><b>${esc(x.t)}</b><small>${esc(x.s)}</small></div><button class="btn sm sec2" onclick="${x.a}">${x.b}</button></div>`).join('')}`}
+function matrix(y,compact,list){const E=(list||emps()).filter(e=>e.status!=='left'||Array.from({length:12},(_,i)=>monthState(e,y,i+1)).some(s=>s!=='na'));
+  if(!E.length)return '<div class="card empty">لا يوجد موظفين</div>';
+  return `<div class="tbl"><table class="mx"><thead><tr><th style="text-align:right">الموظف</th>${MONTHS.map(m=>`<th>${m.slice(0,3)}</th>`).join('')}${compact?'':'<th>المجموع</th>'}</tr></thead><tbody>
+  ${E.map(e=>`<tr><td class="nm">${esc(e.name)}</td>${Array.from({length:12},(_,i)=>{const st=monthState(e,y,i+1);const p=sum(paidFor(e._id,y,i+1),s=>s.amount);
+    return `<td><span class="cell st-${st}" onclick="cellClick('${e._id}',${y},${i+1})">${st==='paid'?'✓':st==='partial'?nf(p):st==='late'?'✗':st==='leave'?'🌴':st==='upcoming'?'•':''}</span></td>`}).join('')}${compact?'':`<td><b>${nf(sum(sals().filter(s=>s.empId===e._id&&+s.year===y),s=>s.amount))}</b></td>`}</tr>`).join('')}</tbody></table></div>`}
+function cellClick(eid,y,m){const e=S.employees[eid];const st=monthState(e,y,m);const ps=paidFor(eid,y,m);
+  openModal(`<h3>${esc(e.name)} · ${mName(y,m)}<button class="x" onclick="closeModal()">×</button></h3><p><span class="chip st-${st}">${MST[st]}</span> الراتب ${money(e.salary)}</p>
+  ${ps.length?`<div class="tbl"><table><tr><th>التاريخ</th><th>المبلغ</th><th>الطريقة</th><th></th></tr>${ps.map(s=>`<tr><td>${fd(s.date)}</td><td>${nf(s.amount)}</td><td>${s.method==='transfer'?'🏦 '+esc(s.transferBank||''):'💵 نقداً'}</td><td><button class="btn sm warn" onclick="delSal('${s._id}')">🗑️</button></td></tr>`).join('')}</table></div>`:''}
+  <div class="btns">${st!=='paid'?`<button class="btn gd" onclick="payEmp('${eid}',${y},${m})">💰 صرف</button>`:''}
+   ${st==='late'?`<button class="btn ghost" onclick="waive('${eid}',${y},${m},true)">🚫 غير مستحق (معفى)</button>`:''}${st==='waived'?`<button class="btn ghost" onclick="waive('${eid}',${y},${m},false)">↩️ إلغاء الإعفاء</button>`:''}</div>`)}
+async function waive(eid,y,m,on){const w={...(META().waived||{})};const k=eid+'_'+y+'_'+m;if(on)w[k]=true;else delete w[k];await saveMeta({waived:w});closeModal();toast('تم ✓')}
+
+/* ---------- صرف الرواتب ---------- */
+function vPay(){const{y,m}=PM;const E=emps().filter(e=>!['na'].includes(monthState(e,y,m))||paidFor(e._id,y,m).length);
+  const due=E.filter(e=>['late','upcoming','partial'].includes(monthState(e,y,m)));const paidAmt=sum(sals().filter(s=>+s.year===y&&+s.month===m),s=>s.amount);
+  const tot=sum(E.filter(e=>!['leave','waived','na'].includes(monthState(e,y,m))),e=>e.salary);
+  return `<div class="mhead"><button class="ibtn2" onclick="shiftM(-1)">›</button><div style="text-align:center"><b>${mName(y,m)}</b><div class="small muted">صُرف ${money(paidAmt)} من ${money(tot)}</div></div><button class="ibtn2" onclick="shiftM(1)">‹</button></div>
+  <div class="prog2" style="margin:-4px 4px 14px"><i style="width:${tot?Math.min(100,paidAmt/tot*100):0}%"></i></div>
+  ${due.length>1?`<div class="btns" style="margin:0 0 12px"><button class="btn gd" onclick="bulkPay()">⚡ صرف الكل (${due.length}) · ${money(sum(due,e=>dueAmt(e,y,m)))}</button></div>`:''}
+  ${E.length?E.map(e=>{const st=monthState(e,y,m);const p=sum(paidFor(e._id,y,m),s=>s.amount);const lb=loanBal(e._id);
+    return `<div class="emp st-${st}" onclick="${['paid'].includes(st)?`cellClick('${e._id}',${y},${m})`:`payEmp('${e._id}',${y},${m})`}">${phHTML(e)}
+    <div style="min-width:0"><b>${esc(e.name)}</b><small>${esc(e.role||'')} · ${money(e.salary)}${lb?` · <span style="color:var(--amber)">سلفة ${nf(lb)}</span>`:''}</small>
+    <small><span class="chip st-${st}">${MST[st]}${st==='partial'?' '+nf(p):''}</span></small></div>
+    <div class="amt">${st==='paid'?`<div class="a" style="color:var(--green)">✓</div><small>${nf(p)}</small>`:['late','upcoming','partial'].includes(st)?`<button class="btn sm gd">💰 صرف</button>`:`<small>${MST[st]}</small>`}</div></div>`}).join(''):'<div class="card empty">لا يوجد موظفين لهذا الشهر</div>'}`}
+function shiftM(d){const k=ymKey(PM.y,PM.m)+d;PM={y:Math.floor(k/12),m:k%12+1};render()}
+function payEmp(eid,y,m){const e=S.employees[eid];y=y||PM.y;m=m||PM.m;const lb=loanBal(eid);const M=META();
+  const due=dueAmt(e,y,m)||+e.salary||0;const lateL=lateMonths(e).filter(x=>!(x.y===y&&x.m===m));
+  openModal(`<h3>💰 صرف راتب<button class="x" onclick="closeModal()">×</button></h3>
+  <div class="profile-h">${phHTML(e,64)}<div><b style="font-size:17px">${esc(e.name)}</b><div class="small muted">${esc(e.role||'')} · الراتب ${money(e.salary)}</div></div></div>
+  <div class="form"><label>الشهر<select id="pM">${MONTHS.map((n,i)=>`<option value="${i+1}" ${i+1===m?'selected':''}>${n}</option>`).join('')}</select></label>
+   <label>السنة<select id="pY">${[y-2,y-1,y,y+1].map(x=>`<option ${x===y?'selected':''}>${x}</option>`).join('')}</select></label>
+   <label>المبلغ<input id="pAmt" inputmode="decimal" value="${due}" oninput="netCalc()"></label><label>تاريخ الصرف<input type="date" id="pDate" value="${today()}"></label>
+   <div class="full"><div class="small muted" style="margin-bottom:4px">طريقة الصرف</div><div class="opts" id="pMeth"><button type="button" class="on" data-m="cash" onclick="setMeth(this)">💵 نقداً</button><button type="button" data-m="transfer" onclick="setMeth(this)">🏦 تحويل</button></div></div>
+   <div class="full form" id="pTr" style="display:none;grid-template-columns:inherit">
+    <label>البنك<select id="pBank"><option value="">-</option>${(M.banks||[]).map(b=>`<option ${e.lastBank===b?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
+    <label>المستفيد<select id="pBen"><option value="">-</option>${(M.beneficiaries||[]).map(b=>`<option ${e.lastBen===b?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
+    <label>مبلغ التحويل<input id="pTrAmt" inputmode="decimal" placeholder="نفس المبلغ"></label></div>
+   ${lb?`<label class="full">خصم من السلفة (الباقي ${money(lb)})<input id="pLoan" inputmode="decimal" value="0" oninput="netCalc()"><div class="opts">${[Math.min(lb,500),Math.min(lb,(+e.salary||0)/2),lb].filter((x,i,a)=>x>0&&a.indexOf(x)===i).map(x=>`<button type="button" onclick="$('#pLoan').value=${r2(x)};netCalc()">${nf(x)}</button>`).join('')}</div></label>`:''}
+   <label class="full">ملاحظات<input id="pNotes"></label>
+   ${lateL.length?`<div class="full"><div class="small muted" style="margin-bottom:4px">صرف نفس المبلغ لأشهر متأخرة ثانية:</div><div class="opts" id="pExtra">${lateL.map(x=>`<button type="button" data-k="${x.y}-${x.m}" onclick="this.classList.toggle('on')">${mName(x.y,x.m)}</button>`).join('')}</div></div>`:''}</div>
+  <div class="netbox"><span>يستلم بيده</span><span id="pNet">${money(due)}</span></div>
+  <div class="btns"><button class="btn gd" style="flex:1;padding:13px" onclick="savePay('${eid}')">✅ تأكيد الصرف</button></div>`)}
+function setMeth(b){document.querySelectorAll('#pMeth button').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#pTr').style.display=b.dataset.m==='transfer'?'':'none'}
+function netCalc(){const a=+v('pAmt')||0,l=+(v('pLoan')||0);$('#pNet').textContent=money(a-l)}
+async function savePay(eid){const e=S.employees[eid];const amount=+toEn(v('pAmt'));if(!amount||amount<=0){toast('اكتب المبلغ');return}
+  const method=$('#pMeth .on').dataset.m;const y=+v('pY'),m=+v('pM');const loanCut=Math.min(+(v('pLoan')||0)||0,loanBal(eid));
+  const months=[[y,m],...[...document.querySelectorAll('#pExtra .on')].map(b=>b.dataset.k.split('-').map(Number))];
+  const base0={empId:eid,amount,date:v('pDate')||today(),method,notes:v('pNotes'),transferBank:method==='transfer'?v('pBank'):'',transferTo:method==='transfer'?v('pBen'):'',transferAmount:method==='transfer'?(+v('pTrAmt')||amount):0,paid:true,createdAt:Date.now()};
+  let first=null;for(const[yy,mm]of months){const id=uid('s');first=first||id;await dbSet('salaries/'+id,{...base0,year:yy,month:mm,loanDeduct:id===first?loanCut:0})}
+  if(loanCut>0)await applyLoanCut(eid,loanCut,base0.date,first);
+  if(method==='transfer')await dbSet('employees/'+eid,{...clean(e),lastBank:base0.transferBank,lastBen:base0.transferTo});
+  closeModal();toast(`تم صرف ${months.length>1?months.length+' أشهر':'الراتب'} ✓`)}
+async function applyLoanCut(eid,amt,date,salId){for(const l of loans().filter(l=>l.empId===eid&&l.status!=='paid').sort((a,b)=>String(a.date).localeCompare(b.date))){if(amt<=0)break;
+  const bal=(+l.amount||0)-(+l.repaid||0);const x=Math.min(bal,amt);amt-=x;const rep=(+l.repaid||0)+x;
+  await dbSet('loans/'+l._id,{...clean(l),repaid:rep,status:rep>=+l.amount?'paid':'partial',repayDate:date,payments:[...(l.payments||[]),{amount:x,date,via:'salary',salId}]})}}
+async function bulkPay(){const{y,m}=PM;const due=emps().filter(e=>['late','upcoming','partial'].includes(monthState(e,y,m)));
+  if(!await ask(`صرف رواتب ${mName(y,m)} نقداً لـ ${due.length} موظفين بإجمالي ${money(sum(due,e=>dueAmt(e,y,m)))}؟<br><small class="muted">${due.map(e=>esc(e.name)+' '+nf(dueAmt(e,y,m))).join('، ')}</small>`,'صرف الكل'))return;
+  for(const e of due)await dbSet('salaries/'+uid('s'),{empId:e._id,amount:dueAmt(e,y,m),year:y,month:m,date:today(),method:'cash',paid:true,notes:'صرف جماعي',createdAt:Date.now()});toast('تم صرف الكل ✓')}
+async function delSal(id){const s=S.salaries[id];if(!await ask(`حذف دفعة ${money(s.amount)} لشهر ${mName(+s.year,+s.month)}؟`,'حذف'))return;
+  if(+s.loanDeduct>0){for(const l of loans().filter(l=>(l.payments||[]).some(p=>p.salId===id))){const pays=l.payments.filter(p=>p.salId!==id);const rep=sum(pays,p=>p.amount);await dbSet('loans/'+l._id,{...clean(l),payments:pays,repaid:rep,status:rep>=+l.amount?'paid':rep>0?'partial':'pending'})}}
+  await dbDel('salaries/'+id);closeModal();toast('تم الحذف')}
+
+/* ---------- الموظفون ---------- */
+function vEmps(){let E=emps();if(EF.st==='current')E=E.filter(e=>e.status!=='left');else if(EF.st!=='all')E=E.filter(e=>e.status===EF.st);
+  if(EF.q){const q=norm(EF.q);E=E.filter(e=>norm([e.name,e.role,e.phone,e.nationality].join(' ')).includes(q))}const y=curY();
+  return `<div class="seg">${[['current','الحاليين'],['active','✅ على رأس العمل'],['leave','🌴 إجازة'],['left','🚪 تركوا العمل'],['all','الكل']].map(([k,l])=>`<button class="${EF.st===k?'on':''}" onclick="EF.st='${k}';render()">${l}</button>`).join('')}</div>
+  <div class="filters"><input id="eq" placeholder="🔍 بحث" value="${esc(EF.q)}" oninput="EF.q=this.value;clearTimeout(window._q);window._q=setTimeout(()=>{render();const x=$('#eq');x.focus();x.setSelectionRange(x.value.length,x.value.length)},350)"><button class="btn" onclick="editEmp()">➕ موظف</button></div>
+  ${legendHTML()}
+  <div class="grid g2">${E.map(e=>{const st=STATUS[e.status||'active'];const L=lateMonths(e);const lb=loanBal(e._id);const ds=docsOf(e);const wd=ds.slice().sort((a,b)=>a.expiry.localeCompare(b.expiry))[0];
+    return `<div class="emp st-${L.length?'late':e.status==='leave'?'leave':e.status==='left'?'left':'paid'}" style="margin:0" onclick="openEmp('${e._id}')">${phHTML(e)}
+    <div style="min-width:0"><b>${esc(e.name)}</b><small>${eIc(e)} ${esc(e.role||'')} · ${money(e.salary)}</small>
+    <div class="chips"><span class="chip st-${e.status==='leave'?'leave':e.status==='left'?'left':'paid'}">${st.ic} ${st.l}${e.status==='leave'&&e.leaveDate?' '+durationTxt(dBetween(e.leaveDate,today())):''}</span>${L.length?`<span class="chip st-late">${L.length} متأخر</span>`:''}${lb?`<span class="chip st-partial">سلفة ${nf(lb)}</span>`:''}${wd?`<span class="chip st-${docSt(wd)}">${dT(wd).ic} ${docDays(wd)<0?'منتهية':docDays(wd)+' يوم'}</span>`:''}</div>
+    ${yearStrip(e,y)}</div><div></div></div>`}).join('')}</div>${E.length?'':'<div class="card empty">لا يوجد</div>'}`}
+function openEmp(id){const e=S.employees[id];if(!e)return;const y=curY();const st=STATUS[e.status||'active'];
+  const all=sals().filter(s=>s.empId===id).sort((a,b)=>(+b.year-+a.year)||(+b.month-+a.month)||String(b.date).localeCompare(a.date));
+  const L=lateMonths(e);const lb=loanBal(id);const ds=docsOf(e).sort((a,b)=>a.expiry.localeCompare(b.expiry));const svc=e.startDate?dBetween(e.startDate,e.status==='left'&&e.endDate?e.endDate:today()):null;
+  openModal(`<h3><span>${esc(e.name)}</span><button class="x" onclick="closeModal()">×</button></h3>
+  <div class="profile-h">${phHTML(e,86)}<div><div class="chips"><span class="chip st-${e.status==='leave'?'leave':e.status==='left'?'left':'paid'}">${st.ic} ${st.l}</span>${L.length?`<span class="chip st-late">⚠️ ${L.length} أشهر متأخرة</span>`:''}</div>
+   <div style="font-size:22px;font-weight:700;margin-top:4px" class="gold">${money(e.salary)}</div><div class="small muted">${eIc(e)} ${esc(e.role||'')}${e.nationality?' · '+esc(e.nationality):''}</div></div></div>
+  <dl class="kv">${e.startDate?`<dt>بداية العمل</dt><dd>${fd(e.startDate)} · مدة الخدمة ${durationTxt(svc)}</dd>`:''}${e.status==='leave'&&e.leaveDate?`<dt>الإجازة</dt><dd>من ${fd(e.leaveDate)} (${durationTxt(dBetween(e.leaveDate,today()))})</dd>`:''}${e.status==='left'&&e.endDate?`<dt>ترك العمل</dt><dd>${fd(e.endDate)}</dd>`:''}
+   ${e.phone?`<dt>الجوال</dt><dd class="num">${esc(e.phone)}</dd>`:''}<dt>مدفوع ${y}</dt><dd>${money(sum(all.filter(s=>+s.year===y),s=>s.amount))}</dd><dt>مدفوع إجمالي</dt><dd>${money(sum(all,s=>s.amount))}</dd>
+   ${L.length?`<dt>متأخر</dt><dd style="color:var(--red)">${money(sum(L,x=>x.due))} (${L.map(x=>MONTHS[x.m-1]+' '+x.y).join('، ')})</dd>`:''}${lb?`<dt>سلفة باقية</dt><dd style="color:var(--amber)">${money(lb)}</dd>`:''}${e.notes?`<dt>ملاحظات</dt><dd>${esc(e.notes)}</dd>`:''}</dl>
+  <div class="small muted" style="margin-top:12px">${y}</div>${yearStrip(e,y)}<div class="small muted" style="margin-top:6px">${y-1}</div>${yearStrip(e,y-1)}
+  <div class="btns">${e.status!=='left'?`<button class="btn gd" onclick="payEmp('${id}'${L[0]?`,${L[0].y},${L[0].m}`:''})">💰 صرف راتب</button><button class="btn sec2" onclick="newLoan('${id}')">💸 سلفة</button><button class="btn sec2" onclick="toggleLeave('${id}')">${e.status==='leave'?'▶️ عودة للعمل':'🌴 إجازة'}</button>`:''}
+   <button class="btn ghost" onclick="editEmp('${id}')">✏️ تعديل</button><button class="btn ghost" onclick="repType='emp';repEmp='${id}';closeModal();go('rep')">🖨️ كشف حساب</button>${e.phone?`<a class="btn wa" target="_blank" href="${waLink(e.phone,'السلام عليكم '+e.name)}">واتساب</a>`:''}</div>
+  <h4 style="margin:18px 0 8px">🪪 المستندات</h4>${ds.map(i=>docRow(i)).join('')||'<p class="small muted">ما فيه مستندات</p>'}<div class="btns" style="margin-top:4px"><button class="btn sm sec2" onclick="editDoc(null,'${id}')">➕ مستند</button></div>
+  ${(e.leaves||[]).length?`<h4 style="margin:18px 0 8px">🌴 الإجازات السابقة</h4>${e.leaves.map(l=>`<div class="small">من ${fd(l.from)} إلى ${fd(l.to)} (${durationTxt(dBetween(l.from,l.to))})</div>`).join('')}`:''}
+  <h4 style="margin:18px 0 8px">💰 آخر الدفعات</h4>${all.length?`<div class="tbl"><table><tr><th>الشهر</th><th>المبلغ</th><th>التاريخ</th><th>الطريقة</th><th></th></tr>${all.slice(0,24).map(s=>`<tr><td>${mName(+s.year,+s.month)}</td><td><b>${nf(s.amount)}</b>${+s.loanDeduct?`<br><small class="muted">خصم سلفة ${nf(s.loanDeduct)}</small>`:''}</td><td>${fd(s.date)}</td><td>${s.method==='transfer'?'🏦 '+esc(s.transferBank||''):'💵'}</td><td><button class="btn sm warn" onclick="delSal('${s._id}')">🗑️</button></td></tr>`).join('')}</table></div>`:'<p class="small muted">لا يوجد</p>'}`)}
+function docRow(i){const d=docDays(i);const st=docSt(i);return `<div class="emp st-${st}" style="grid-template-columns:44px 1fr auto;cursor:pointer" onclick="editDoc('${i._id}')"><div class="ph" style="width:44px;height:44px;font-size:22px">${dT(i).ic}</div>
+  <div style="min-width:0"><b>${esc(dLabel(i))}</b><small><span class="num">${esc(i.number||'')}</span> · ${fd(i.expiry)} · ${hijS(i.expiry)}</small></div>
+  <div class="cd" style="background:var(--s);color:var(--c)"><div class="d">${Math.abs(d)}</div><small>${d<0?'يوم تأخير':'يوم باقي'}</small></div></div>`}
+let tmpPhoto=null;
+function editEmp(id){const e=id?S.employees[id]:{status:'active',startDate:today()};tmpPhoto=e.photo||null;const roles=[...new Set([...(META().roles||DEF_ROLES),e.role].filter(Boolean))];
+  openModal(`<h3>${id?'تعديل موظف':'موظف جديد'}<button class="x" onclick="closeModal()">×</button></h3>
+  <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px"><div id="phPrev">${phHTML(e,84)}</div><button class="btn sec2" onclick="pickPhoto()">📷 الصورة</button></div>
+  <div class="form"><label class="full">الاسم<input id="eName" value="${esc(e.name)}"></label>
+  <label>المسمى<select id="eRole">${roles.map(r=>`<option ${e.role===r?'selected':''}>${esc(r)}</option>`).join('')}</select></label>
+  <label>الراتب الشهري<input id="eSal" inputmode="decimal" value="${esc(e.salary)}"></label>
+  <label>بداية العمل<input type="date" id="eStart" value="${esc(e.startDate||'')}"></label>
+  <label>الجنسية<input id="eNat" value="${esc(e.nationality)}"></label><label>الجوال<input id="ePhone" dir="ltr" value="${esc(e.phone)}"></label>
+  <label>الحالة<select id="eSt">${Object.entries(STATUS).map(([k,s])=>`<option value="${k}" ${(e.status||'active')===k?'selected':''}>${s.ic} ${s.l}</option>`).join('')}</select></label>
+  <label>تاريخ ترك العمل<input type="date" id="eEnd" value="${esc(e.endDate||'')}"></label>
+  <label class="full">ملاحظات<textarea id="eNotes" rows="2">${esc(e.notes)}</textarea></label></div>
+  <div class="btns"><button class="btn gd" onclick="saveEmp(${id?`'${id}'`:'null'})">💾 حفظ</button>${id?`<button class="btn warn" onclick="delEmp('${id}')">🗑️ حذف</button>`:''}</div>`)}
+function compress(file,max=420,q=.75){return new Promise((res,rej)=>{const u=file instanceof Blob?URL.createObjectURL(file):file;const im=new Image();
+  im.onload=()=>{let w=im.naturalWidth,h=im.naturalHeight;const s=Math.min(1,max/Math.max(w,h));w=Math.round(w*s);h=Math.round(h*s);const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);if(file instanceof Blob)URL.revokeObjectURL(u);res(c.toDataURL('image/jpeg',q))};
+  im.onerror=()=>rej(new Error('img'));im.src=u})}
+function pickPhoto(){const inp=$('#photoFile');inp.value='';inp.onchange=async()=>{const f=inp.files[0];if(!f)return;try{tmpPhoto=await compress(f);$('#phPrev').innerHTML=phHTML({photo:tmpPhoto},84)}catch(e){toast('تعذر قراءة الصورة')}};inp.click()}
+async function saveEmp(id){const name=v('eName');const salary=+toEn(v('eSal'));if(!name){toast('اكتب الاسم');return}if(!(salary>0)){toast('اكتب الراتب');return}
+  const eid=id||uid('e');const old=id?clean(S.employees[id]):{createdAt:Date.now()};const status=v('eSt');
+  const o={...old,name,role:v('eRole'),salary,startDate:v('eStart'),nationality:v('eNat'),phone:v('ePhone'),notes:v('eNotes'),photo:tmpPhoto||'',status,endDate:status==='left'?(v('eEnd')||today()):''};
+  if(status==='leave'&&!o.leaveDate)o.leaveDate=today();if(status!=='leave')delete o.leaveDate;
+  o.renewPid=await syncPerson({...o,_id:eid});await dbSet('employees/'+eid,o);toast('تم الحفظ ✓');closeModal();setTimeout(()=>openEmp(eid),300)}
+async function syncPerson(e){try{let p=personOf(e);const pid=p?p._id:uid('p');
+  const o={...(p?clean(p):{createdAt:Date.now(),rel:'worker'}),name:e.name,job:e.role||'',nationality:e.nationality||(p&&p.nationality)||'',phone:e.phone||(p&&p.phone)||'',payEmp:e._id};if(e.photo)o.photo=e.photo;
+  if(e.status==='left')o.notes=[(p&&p.notes||'').replace(/ · ?ترك العمل.*$/,''),'ترك العمل'].filter(Boolean).join(' · ');
+  await rSet('people/'+pid,o);return pid}catch(x){console.warn(x);return e.renewPid||''}}
+async function delEmp(id){const n=sals().filter(s=>s.empId===id).length;if(!await ask(`حذف ${esc(S.employees[id].name)} نهائياً مع ${n} دفعة وسلفه؟<br><small>الأفضل تخليه "ترك العمل" عشان يبقى سجله.</small>`,'حذف نهائي'))return;
+  for(const s of sals().filter(s=>s.empId===id))await dbDel('salaries/'+s._id);for(const l of loans().filter(l=>l.empId===id))await dbDel('loans/'+l._id);await dbDel('employees/'+id);closeModal();toast('تم الحذف')}
+function toggleLeave(id){const e=S.employees[id];
+  if(e.status==='leave')openModal(`<h3>▶️ عودة ${esc(e.name)}<button class="x" onclick="closeModal()">×</button></h3><p class="muted">في إجازة من ${fd(e.leaveDate)}</p><div class="form"><label>تاريخ العودة<input type="date" id="lv" value="${today()}"></label></div><div class="btns"><button class="btn gd" onclick="setLeave('${id}',false)">تأكيد العودة</button></div>`);
+  else openModal(`<h3>🌴 إجازة ${esc(e.name)}<button class="x" onclick="closeModal()">×</button></h3><p class="small muted">أشهر الإجازة ما تنحسب عليك متأخرة.</p><div class="form"><label>بداية الإجازة<input type="date" id="lv" value="${today()}"></label></div><div class="btns"><button class="btn gd" onclick="setLeave('${id}',true)">تأكيد</button></div>`)}
+async function setLeave(id,on){const e=clean(S.employees[id]);const d=v('lv')||today();
+  if(on){e.status='leave';e.leaveDate=d}else{e.leaves=[...(e.leaves||[]),{from:e.leaveDate||d,to:d}];e.status='active';delete e.leaveDate}
+  await dbSet('employees/'+id,e);closeModal();toast(on?'تم تسجيل الإجازة 🌴':'أهلاً بعودته ✓')}
+
+/* ---------- السلف ---------- */
+function vLoans(){const L=loans().sort((a,b)=>String(b.date).localeCompare(a.date));const open=L.filter(l=>l.status!=='paid');const shown=LF==='open'?open:L;
+  return `<div class="kpis">${kpi('💸','الباقي على الموظفين',money(sum(open,l=>(+l.amount||0)-(+l.repaid||0))),'amber',null,1)}${kpi('📋','سلف قائمة',open.length,'red')}${kpi('📊','إجمالي كل السلف',money(sum(L,l=>l.amount)),'blue',null,1)}</div>
+  <div class="seg" style="margin-top:14px"><button class="${LF==='open'?'on':''}" onclick="LF='open';render()">القائمة</button><button class="${LF==='all'?'on':''}" onclick="LF='all';render()">الكل</button></div>
+  <div class="btns" style="margin:0 0 12px"><button class="btn gd" onclick="newLoan()">➕ سلفة جديدة</button></div>
+  ${shown.map(l=>{const e=S.employees[l.empId]||{name:'-'};const bal=(+l.amount||0)-(+l.repaid||0);const pct=l.amount?Math.round((+l.repaid||0)/l.amount*100):0;const st=l.status==='paid'?'paid':l.status==='partial'?'partial':'late';
+    return `<div class="loan st-${st}"><div style="display:flex;gap:10px;align-items:center">${phHTML(e,46)}<div style="flex:1;min-width:0"><b>${esc(e.name)}</b><div class="small muted">${fd(l.date)}${l.notes?' · '+esc(l.notes):''}</div></div>
+    <div style="text-align:left"><b style="color:var(--c)">${l.status==='paid'?'✓ مسددة':nf(bal)}</b><div class="small muted">من ${nf(l.amount)}</div></div></div>
+    <div class="prog2"><i style="width:${pct}%"></i></div>
+    ${(l.payments||[]).length?`<div class="small muted" style="margin-top:6px">${l.payments.map(p=>`${fd(p.date)}: ${nf(p.amount)}${p.via==='salary'?' (من الراتب)':''}`).join(' · ')}</div>`:''}
+    <div class="btns">${l.status!=='paid'?`<button class="btn sm gd" onclick="repayLoan('${l._id}')">سداد</button>`:''}<button class="btn sm ghost" onclick="delLoan('${l._id}')">🗑️</button></div></div>`}).join('')||'<div class="card empty">ما فيه سلف قائمة 👌</div>'}`}
+function newLoan(eid){openModal(`<h3>💸 سلفة جديدة<button class="x" onclick="closeModal()">×</button></h3><div class="form">
+  <label class="full">الموظف<select id="lE">${activeEmps().map(e=>`<option value="${e._id}" ${eid===e._id?'selected':''}>${esc(e.name)}</option>`).join('')}</select></label>
+  <label>المبلغ<input id="lA" inputmode="decimal"></label><label>التاريخ<input type="date" id="lD" value="${today()}"></label><label class="full">ملاحظات<input id="lN"></label></div>
+  <div class="btns"><button class="btn gd" onclick="saveLoan()">💾 حفظ</button></div>`)}
+async function saveLoan(){const a=+toEn(v('lA'));if(!(a>0)){toast('اكتب المبلغ');return}await dbSet('loans/'+uid('l'),{empId:v('lE'),amount:a,date:v('lD')||today(),notes:v('lN'),repaid:0,status:'pending',payments:[],createdAt:Date.now()});closeModal();toast('تم تسجيل السلفة ✓')}
+function repayLoan(id){const l=S.loans[id];const bal=(+l.amount||0)-(+l.repaid||0);openModal(`<h3>سداد سلفة ${esc((S.employees[l.empId]||{}).name||'')}<button class="x" onclick="closeModal()">×</button></h3><p>الباقي <b>${money(bal)}</b></p>
+  <div class="form"><label>المبلغ<input id="rA" inputmode="decimal" value="${bal}"></label><label>التاريخ<input type="date" id="rD" value="${today()}"></label></div><div class="btns"><button class="btn gd" onclick="doRepay('${id}')">💾 سداد</button></div>`)}
+async function doRepay(id){const l=S.loans[id];const a=+toEn(v('rA'));if(!(a>0)){toast('اكتب المبلغ');return}const rep=Math.min(+l.amount,(+l.repaid||0)+a);
+  await dbSet('loans/'+id,{...clean(l),repaid:rep,status:rep>=+l.amount?'paid':'partial',repayDate:v('rD'),payments:[...(l.payments||[]),{amount:a,date:v('rD')||today(),via:'cash'}]});closeModal();toast('تم ✓')}
+async function delLoan(id){if(await ask('حذف السلفة؟','حذف')){await dbDel('loans/'+id);toast('تم الحذف')}}
+
+/* ---------- المستندات (مشتركة مع برنامج الانتهاءات) ---------- */
+function vDocs(){const D=allDocs();
+  return `<div class="card small muted" style="margin-bottom:12px">🔗 هذي المستندات مربوطة ببرنامج <a href="../renewals/" style="color:var(--pri);font-weight:700">متابعة الانتهاءات</a>، أي تعديل هنا يظهر هناك والعكس، ومن هناك تقدر تصورها وتطلع تقارير الغرامات.</div>
+  <div class="btns" style="margin:0 0 12px"><button class="btn gd" onclick="editDoc()">➕ مستند</button></div>
+  ${D.map(i=>`<div style="display:flex;gap:8px;align-items:center"><div style="flex:1">${docRow(i).replace('<b>',`<b>${esc(i.emp.name)} · `)}</div></div>`).join('')||'<div class="card empty">ما فيه مستندات</div>'}
+  ${activeEmps().filter(e=>!docsOf(e).length).length?`<p class="small muted">بدون مستندات: ${activeEmps().filter(e=>!docsOf(e).length).map(e=>esc(e.name)).join('، ')}</p>`:''}`}
+function editDoc(itemId,eid,type){const it=itemId?R.items[itemId]:{type:type||'iqama'};let emp=eid?S.employees[eid]:null;
+  if(itemId&&!emp)emp=emps().find(e=>{const p=personOf(e);return p&&p._id===it.ownerId});
+  openModal(`<h3>${itemId?'تعديل مستند':'مستند جديد'}<button class="x" onclick="closeModal()">×</button></h3><div class="form">
+  <label class="full">الموظف<select id="dE">${emps().map(e=>`<option value="${e._id}" ${emp&&emp._id===e._id?'selected':''}>${esc(e.name)}</option>`).join('')}</select></label>
+  <label>النوع<select id="dT">${Object.entries(DOC_T).map(([k,t])=>`<option value="${k}" ${it.type===k?'selected':''}>${t.ic} ${t.l}</option>`).join('')}</select></label>
+  <label>الرقم<input id="dN" dir="ltr" value="${esc(it.number)}"></label><label>تاريخ الإصدار<input type="date" id="dI" value="${esc(it.issue||'')}"></label>
+  <label>تاريخ الانتهاء<input type="date" id="dX" value="${esc(it.expiry||'')}"></label>
+  <label>أو الانتهاء بالهجري<input id="dH" placeholder="${it.expiry?hijS(it.expiry):'1449/05/20'}" oninput="const g=parseHijriText(this.value);if(g){$('#dX').value=g;$('#dHo').textContent='= '+fd(g)}"><span class="small muted" id="dHo"></span></label>
+  <label class="full">ملاحظات<input id="dNo" value="${esc(it.notes)}"></label></div>
+  <div class="btns"><button class="btn gd" onclick="saveDoc(${itemId?`'${itemId}'`:'null'})">💾 حفظ</button>${itemId?`<button class="btn warn" onclick="delDoc('${itemId}')">🗑️</button><a class="btn ghost" href="../renewals/">فتح في الانتهاءات ↗</a>`:''}</div>`)}
+async function saveDoc(itemId){const e=S.employees[v('dE')];if(!e){toast('اختر الموظف');return}if(!v('dX')){toast('حدد تاريخ الانتهاء');return}
+  let pid=(personOf(e)||{})._id;if(!pid){pid=await syncPerson(e);await dbSet('employees/'+e._id,{...clean(e),renewPid:pid})}
+  const old=itemId?clean(R.items[itemId]):{state:'active',imgs:[],createdAt:Date.now()};const type=v('dT');
+  await rSet('items/'+(itemId||uid('i')),{...old,type,title:type==='other'?(old.title||'مستند'):'',ownerKind:'person',ownerId:pid,number:v('dN'),issue:v('dI'),expiry:v('dX'),notes:v('dNo'),state:old.state==='renewing'&&v('dX')!==old.expiry?'active':old.state||'active'});
+  closeModal();toast('تم الحفظ ✓')}
+async function delDoc(id){if(await ask('حذف المستند من برنامج الانتهاءات كمان؟','حذف')){await rDel('items/'+id);closeModal();toast('تم الحذف')}}
+
+/* ================= التقارير ================= */
+const REPS=[['month','📄 كشف رواتب شهر'],['year','🗓️ السجل السنوي'],['emp','👤 كشف حساب موظف'],['late','⚠️ المتأخرات'],['loans','💸 السلف'],['methods','🏦 طرق الصرف'],['staff','👥 بيانات الموظفين']];
+function vRep(){const years=[...new Set([curY(),...sals().map(s=>+s.year)])].sort((a,b)=>b-a);
+  return `<div class="seg noprint">${REPS.map(([k,l])=>`<button class="${repType===k?'on':''}" onclick="repType='${k}';render()">${l}</button>`).join('')}</div>
+  <div class="filters noprint">${['month','year','methods','emp'].includes(repType)?`<select onchange="repY=+this.value;render()">${years.map(y=>`<option ${repY===y?'selected':''}>${y}</option>`).join('')}</select>`:''}
+  ${repType==='month'?`<select onchange="repM=+this.value;render()">${MONTHS.map((n,i)=>`<option value="${i+1}" ${repM===i+1?'selected':''}>${n}</option>`).join('')}</select>`:''}
+  ${repType==='emp'?`<select onchange="repEmp=this.value;render()"><option value="">اختر الموظف</option>${emps().map(e=>`<option value="${e._id}" ${repEmp===e._id?'selected':''}>${esc(e.name)}</option>`).join('')}</select>`:''}
+  <button class="btn gd" onclick="window.print()">🖨️ طباعة / PDF</button><button class="btn sec2" onclick="dlCSV()">📊 Excel</button></div>
+  <div class="rep" id="repBox">${repHTML()}</div>`}
+function rhead(t,s){return `<div class="rhead"><div><h2>${t}</h2><small>${s||''}</small></div><div style="text-align:left"><b>${esc(ownerName())}</b><br><small>${fd(today())} · ${esc(hijLong(today()))}</small></div></div>`}
+const rfoot=()=>`<div class="rfoot">تقرير آلي من نظام الرواتب · ${fd(today())}</div>`;
+function rsum(a){return `<div class="rsum">${a.map(([l,x])=>`<div><span>${l}</span><b>${x}</b></div>`).join('')}</div>`}
+function salRows(list,showEmp=true){return `<div class="tbl"><table><thead><tr>${showEmp?'<th>الموظف</th>':''}<th>الشهر</th><th>المبلغ</th><th>خصم سلفة</th><th>الصافي</th><th>التاريخ</th><th>الطريقة</th><th>ملاحظات</th></tr></thead><tbody>
+  ${list.map(s=>{const e=S.employees[s.empId]||{};return `<tr>${showEmp?`<td><b>${esc(e.name||'-')}</b></td>`:''}<td>${mName(+s.year,+s.month)}</td><td>${nf(s.amount)}</td><td>${+s.loanDeduct?nf(s.loanDeduct):'-'}</td><td><b>${nf(s.amount-(+s.loanDeduct||0))}</b></td><td>${fd(s.date)}</td><td>${s.method==='transfer'?'🏦 '+esc([s.transferBank,s.transferTo].filter(Boolean).join(' ← ')):'💵 نقداً'}</td><td>${esc(s.notes||'')}</td></tr>`}).join('')}</tbody>
+  <tfoot><tr><td colspan="${showEmp?2:1}">الإجمالي</td><td>${nf(sum(list,s=>s.amount))}</td><td>${nf(sum(list,s=>s.loanDeduct))}</td><td>${nf(sum(list,s=>s.amount-(+s.loanDeduct||0)))}</td><td colspan="3"></td></tr></tfoot></table></div>`}
+function repHTML(){switch(repType){
+  case 'month':{const y=repY,m=repM;const E=emps().filter(e=>monthState(e,y,m)!=='na'||paidFor(e._id,y,m).length);
+    const rows=E.map(e=>{const st=monthState(e,y,m);const p=sum(paidFor(e._id,y,m),s=>s.amount);const ps=paidFor(e._id,y,m);return {e,st,p,ps}});
+    return rhead('📄 كشف رواتب '+mName(y,m),E.length+' موظف')+rsum([['المستحق',money(sum(rows.filter(r=>!['leave','waived'].includes(r.st)),r=>r.e.salary))],['المصروف',money(sum(rows,r=>r.p))],['الباقي',money(sum(rows.filter(r=>['late','partial','upcoming'].includes(r.st)),r=>dueAmt(r.e,y,m)))],['استلموا',rows.filter(r=>r.st==='paid').length+' من '+rows.filter(r=>!['leave','waived','na'].includes(r.st)).length]])+
+    `<div class="tbl"><table><thead><tr><th>الموظف</th><th>المسمى</th><th>الراتب</th><th>المصروف</th><th>التاريخ</th><th>الطريقة</th><th>الحالة</th><th class="printonly">التوقيع</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.e.photo?`<img src="${r.e.photo}" style="width:30px;height:30px;border-radius:9px;object-fit:cover;vertical-align:middle;margin-left:6px">`:''}<b>${esc(r.e.name)}</b></td><td>${esc(r.e.role||'')}</td><td>${nf(r.e.salary)}</td><td><b>${r.p?nf(r.p):'-'}</b></td><td>${r.ps.map(s=>fd(s.date)).join('<br>')||'-'}</td><td>${r.ps.map(s=>s.method==='transfer'?'🏦 '+esc(s.transferBank||''):'💵').join('<br>')||'-'}</td><td><span class="chip st-${r.st}">${MST[r.st]}</span></td><td class="printonly" style="min-width:90px"></td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="2">الإجمالي</td><td>${nf(sum(rows,r=>r.e.salary))}</td><td>${nf(sum(rows,r=>r.p))}</td><td colspan="4"></td></tr></tfoot></table></div>`+rfoot()}
+  case 'year':{const y=repY;const S2=sals().filter(s=>+s.year===y);const byM=Array.from({length:12},(_,i)=>sum(S2.filter(s=>+s.month===i+1),s=>s.amount));const mx=Math.max(1,...byM);
+    return rhead('🗓️ السجل السنوي '+y,'')+rsum([['إجمالي المدفوع',money(sum(S2,s=>s.amount))],['عدد الدفعات',S2.length],['متوسط شهري',money(sum(byM)/Math.max(1,byM.filter(Boolean).length))],['متأخر حالياً',money(sum(activeEmps().flatMap(lateMonths),x=>x.due))]])+
+    `<div class="vbars">${byM.map((x,i)=>`<div class="vb"><b>${x?nf(x):''}</b><i style="height:${x/mx*100}%"></i><span>${MONTHS[i].slice(0,3)}</span></div>`).join('')}</div>${legendHTML()}${matrix(y,false)}`+rfoot()}
+  case 'emp':{const e=S.employees[repEmp];if(!e)return '<p class="empty">اختر الموظف من القائمة</p>';const all=sals().filter(s=>s.empId===e._id&&+s.year===repY).sort((a,b)=>(+a.month-+b.month)||String(a.date).localeCompare(b.date));
+    const L=loans().filter(l=>l.empId===e._id);const late=lateMonths(e);
+    return rhead('👤 كشف حساب '+esc(e.name),esc([e.role,e.nationality].filter(Boolean).join(' · '))+' · '+repY)+`<div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">${e.photo?`<img src="${e.photo}" style="width:110px;height:110px;object-fit:cover;border-radius:16px">`:''}<div style="flex:1">
+    ${rsum([['الراتب',money(e.salary)],['مدفوع '+repY,money(sum(all,s=>s.amount))],['متأخر',money(sum(late,x=>x.due))],['سلف باقية',money(loanBal(e._id))],['بداية العمل',fd(e.startDate)],['مدة الخدمة',e.startDate?durationTxt(dBetween(e.startDate,today())):'-']])}</div></div>${yearStrip(e,repY)}<h3>الرواتب</h3>${all.length?salRows(all,false):'<p class="muted">لا يوجد</p>'}
+    ${L.length?`<h3>السلف</h3><div class="tbl"><table><tr><th>التاريخ</th><th>المبلغ</th><th>المسدد</th><th>الباقي</th><th>ملاحظات</th></tr>${L.map(l=>`<tr><td>${fd(l.date)}</td><td>${nf(l.amount)}</td><td>${nf(l.repaid)}</td><td><b>${nf((+l.amount||0)-(+l.repaid||0))}</b></td><td>${esc(l.notes||'')}</td></tr>`).join('')}</table></div>`:''}
+    <div style="display:flex;justify-content:space-between;margin-top:40px" class="printonly"><span>توقيع الموظف: ..................</span><span>توقيع صاحب العمل: ..................</span></div>`+rfoot()}
+  case 'late':{const rows=activeEmps().flatMap(e=>lateMonths(e).map(x=>({e,...x})));
+    return rhead('⚠️ الرواتب المتأخرة','الأشهر اللي ما انصرفت أو انصرفت ناقصة')+rsum([['عدد الأشهر',rows.length],['المبلغ',money(sum(rows,r=>r.due))],['موظفين',new Set(rows.map(r=>r.e._id)).size]])+
+    (rows.length?`<div class="tbl"><table><thead><tr><th>الموظف</th><th>الشهر</th><th>الحالة</th><th>الباقي</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.e.name)}</b></td><td>${mName(r.y,r.m)}</td><td><span class="chip st-${r.st}">${MST[r.st]}</span></td><td><b>${nf(r.due)}</b></td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">ما فيه متأخرات 👌</p>')+rfoot()}
+  case 'loans':{const L=loans().sort((a,b)=>String(b.date).localeCompare(a.date));
+    return rhead('💸 تقرير السلف','')+rsum([['الباقي',money(sum(L.filter(l=>l.status!=='paid'),l=>(+l.amount||0)-(+l.repaid||0)))],['قائمة',L.filter(l=>l.status!=='paid').length],['الإجمالي',money(sum(L,l=>l.amount))],['المسدد',money(sum(L,l=>l.repaid))]])+
+    `<div class="tbl"><table><thead><tr><th>الموظف</th><th>التاريخ</th><th>المبلغ</th><th>المسدد</th><th>الباقي</th><th>الحالة</th></tr></thead><tbody>${L.map(l=>`<tr><td><b>${esc((S.employees[l.empId]||{}).name||'-')}</b></td><td>${fd(l.date)}</td><td>${nf(l.amount)}</td><td>${nf(l.repaid)}</td><td><b>${nf((+l.amount||0)-(+l.repaid||0))}</b></td><td>${l.status==='paid'?'✅ مسددة':l.status==='partial'?'🔵 جزئي':'⚠️ قائمة'}</td></tr>`).join('')}</tbody></table></div>`+rfoot()}
+  case 'methods':{const S2=sals().filter(s=>+s.year===repY);const g={};S2.forEach(s=>{const k=s.method==='transfer'?'🏦 '+(s.transferBank||'تحويل'):'💵 نقداً';g[k]=(g[k]||0)+(+s.amount||0)});const mx=Math.max(1,...Object.values(g));
+    return rhead('🏦 طرق الصرف '+repY,'')+`<div class="hbars">${Object.entries(g).sort((a,b)=>b[1]-a[1]).map(([k,x])=>`<div class="hb"><span>${esc(k)}</span><div class="tr"><i style="width:${x/mx*100}%"></i></div><b>${money(x)}</b></div>`).join('')||'<p class="muted">لا يوجد</p>'}</div><h3>التحويلات</h3>${salRows(S2.filter(s=>s.method==='transfer'))}`+rfoot()}
+  case 'staff':{const E=emps();return rhead('👥 بيانات الموظفين',E.length+' موظف')+`<div class="tbl"><table><thead><tr><th>الموظف</th><th>المسمى</th><th>الجنسية</th><th>الراتب</th><th>بداية العمل</th><th>الحالة</th><th>الإقامة</th><th>الجواز</th></tr></thead><tbody>
+    ${E.map(e=>{const ds=docsOf(e);const g=t=>{const x=ds.find(i=>i.type===t);return x?`<span class="chip st-${docSt(x)}">${fd(x.expiry)}</span>`:'-'};return `<tr><td>${e.photo?`<img src="${e.photo}" style="width:30px;height:30px;border-radius:9px;object-fit:cover;vertical-align:middle;margin-left:6px">`:''}<b>${esc(e.name)}</b></td><td>${esc(e.role||'')}</td><td>${esc(e.nationality||'')}</td><td>${nf(e.salary)}</td><td>${fd(e.startDate)}</td><td>${STATUS[e.status||'active'].ic} ${STATUS[e.status||'active'].l}</td><td>${g('iqama')}</td><td>${g('passport')}</td></tr>`}).join('')}</tbody>
+    <tfoot><tr><td colspan="3">إجمالي الرواتب الشهرية (الحاليين)</td><td>${nf(sum(activeEmps(),e=>e.salary))}</td><td colspan="4"></td></tr></tfoot></table></div>`+rfoot()}}return ''}
+function dlCSV(){const rows=[['الموظف','المسمى','الشهر','السنة','المبلغ','خصم سلفة','التاريخ','الطريقة','البنك','المستفيد','ملاحظات']];
+  sals().sort((a,b)=>(+a.year-+b.year)||(+a.month-+b.month)).forEach(s=>{const e=S.employees[s.empId]||{};rows.push([e.name||'',e.role||'',MONTHS[s.month-1],s.year,s.amount,s.loanDeduct||0,s.date,s.method==='transfer'?'تحويل':'نقداً',s.transferBank||'',s.transferTo||'',s.notes||''])});
+  saveFile(`الرواتب-${today()}.csv`,'﻿'+rows.map(r=>r.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'))}
+async function saveFile(filename,data){const ext=filename.split('.').pop().toLowerCase();const types={csv:'text/csv',json:'application/json'};
+  const blob=data instanceof Blob?data:new Blob([data],{type:(types[ext]||'application/octet-stream')+';charset=utf-8'});
+  if(navigator.canShare&&/iPhone|iPad|Android/i.test(navigator.userAgent)){try{const f=new File([blob],filename,{type:blob.type});if(navigator.canShare({files:[f]})){await navigator.share({files:[f],title:filename});return}}catch(e){if(e.name==='AbortError')return}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);toast('تم التنزيل ✓')}
+
+/* ================= النقل من النظام القديم ================= */
+const arr=x=>Array.isArray(x)?x.filter(Boolean):Object.values(x||{}).filter(Boolean);
+let OLD=null;
+async function migrate(){openModal(`<h3>📥 نقل البيانات<button class="x" onclick="closeModal()">×</button></h3><p><span class="spin"></span> جاري قراءة النظام القديم...</p>`);
+  try{const r=await fetch(OLD_URL+'.json');if(!r.ok)throw new Error('HTTP '+r.status);OLD=await r.json();if(!OLD)throw new Error('فاضي')}catch(e){openModal(`<h3>📥 نقل البيانات<button class="x" onclick="closeModal()">×</button></h3><p>تعذر قراءة النظام القديم (${esc(e.message)}). لو قفلته، افتحه مؤقتاً وارجع.</p>`);return}
+  const E=arr(OLD.employees),Sa=arr(OLD.salaries),Lo=arr(OLD.loans),Do=arr(OLD.docs);const done=E.filter(e=>S.employees['e'+e.id]).length;
+  openModal(`<h3>📥 نقل البيانات من النظام القديم<button class="x" onclick="closeModal()">×</button></h3>
+  <div class="rsum"><div><span>الموظفين</span><b>${E.length}</b></div><div><span>دفعات الرواتب</span><b>${Sa.length}</b></div><div><span>السلف</span><b>${Lo.length}</b></div><div><span>المستندات</span><b>${Do.length}</b></div><div><span>البنوك والمستفيدين</span><b>${arr(OLD.banks).length+arr(OLD.beneficiaries).length}</b></div></div>
+  ${E.map(e=>`<div class="emp st-paid" style="cursor:default">${phHTML(e,46)}<div><b>${esc(e.name)}</b><small>${esc(e.role||'')} · ${money(e.salary)} · ${Sa.filter(s=>s.empId==e.id).length} دفعة</small></div><div></div></div>`).join('')}
+  ${done?`<p class="small" style="color:var(--amber)">سبق نقلت ${done} منهم. إعادة النقل تحدّث البيانات بدون تكرار.</p>`:''}
+  <p class="small muted">أول شي بتنزل لك نسخة احتياطية كاملة من النظام القديم في جوالك. احتفظ فيها.</p>
+  <div class="btns"><button class="btn gd" id="mGo" onclick="doMigrate()">✅ نزّل النسخة وانقل الكل</button></div>`)}
+async function doMigrate(){if(!OLD)return;const b=$('#mGo');b.disabled=true;b.innerHTML='<span class="spin"></span> جاري النقل...';
+  try{await saveFile(`نسخة-الرواتب-القديم-${today()}.json`,JSON.stringify(OLD))}catch(e){}
+  const E=arr(OLD.employees),Sa=arr(OLD.salaries),Lo=arr(OLD.loans),Do=arr(OLD.docs);const n={e:0,s:0,l:0,d:0};
+  for(const e of E){const id='e'+e.id;let photo='';if(e.photo&&String(e.photo).startsWith('data:')){try{photo=await compress(e.photo,420,.78)}catch(x){photo=''}}
+    const prev=S.employees[id]?clean(S.employees[id]):{};
+    const o={...prev,oldId:e.id,name:e.name,role:e.role||'',salary:+e.salary||0,startDate:e.startDate||'',notes:e.notes||'',status:e.status||'active',photo:photo||prev.photo||'',order:e.id};
+    if(e.leaveDate)o.leaveDate=e.leaveDate;else delete o.leaveDate;
+    o.renewPid=await syncPerson({...o,_id:id,renewPid:prev.renewPid});await dbSet('employees/'+id,o);S.employees[id]={...o,_id:id};n.e++}
+  let batch=fs.batch(),k=0;const flush=async()=>{if(k){await batch.commit();batch=fs.batch();k=0}};
+  for(const s of Sa){batch.set(base.collection('salaries').doc('s'+s.id),JSON.parse(JSON.stringify({oldId:s.id,empId:'e'+s.empId,amount:+s.amount||0,month:+s.month,year:+s.year,date:s.date||'',notes:s.notes||'',method:s.method||'cash',transferTo:s.transferTo||'',transferBank:s.transferBank||'',transferAmount:+s.transferAmount||0,paid:true})));k++;n.s++;if(k>=400)await flush()}
+  for(const l of Lo){const rep=+l.repaid||0;batch.set(base.collection('loans').doc('l'+l.id),JSON.parse(JSON.stringify({oldId:l.id,empId:'e'+l.empId,amount:+l.amount||0,date:l.date||'',notes:l.notes||'',repaid:rep,status:l.status||(rep>=+l.amount?'paid':rep>0?'partial':'pending'),repayDate:l.repayDate||'',payments:rep?[{amount:rep,date:l.repayDate||l.date||'',via:'cash'}]:[]})));k++;n.l++;if(k>=400)await flush()}
+  await flush();
+  for(const d of Do){const e=S.employees['e'+d.empId];if(!e||!d.expire)continue;const pid=e.renewPid;if(!pid)continue;const type=PR_TYPES[String(d.type).trim()]||'other';
+    const ex=Object.values(R.items).find(i=>i.src==='payroll:doc:'+d.id)||Object.values(R.items).find(i=>i.ownerKind==='person'&&i.ownerId===pid&&i.type===type&&i.state!=='archived'&&(type!=='other'||i.title===d.type));
+    const num=/[0-9A-Za-z]/.test(d.number||'')?String(d.number).trim():'';
+    if(ex){const u={...clean(ex),src:'payroll:doc:'+d.id};if(!ex.expiry||d.expire>ex.expiry){u.expiry=d.expire;if(d.issue)u.issue=d.issue;if(num)u.number=num}if(!u.number&&num)u.number=num;await rSet('items/'+ex._id,u)}
+    else await rSet('items/'+uid('i'),{type,title:type==='other'?d.type:'',ownerKind:'person',ownerId:pid,number:num,issue:d.issue||'',expiry:d.expire,notes:d.notes&&!PR_TYPES[String(d.notes).trim()]?d.notes:'',state:'active',imgs:[],src:'payroll:doc:'+d.id,createdAt:Date.now()});n.d++}
+  const M=META();await saveMeta({banks:[...new Set([...(M.banks||[]),...arr(OLD.banks)])],beneficiaries:[...new Set([...(M.beneficiaries||[]),...arr(OLD.beneficiaries)])],roles:[...new Set([...(M.roles||DEF_ROLES),...arr(OLD.customRoles),...E.map(e=>e.role).filter(Boolean)])],migratedAt:new Date().toISOString()});
+  try{await rbase.collection('settings').doc('main').set({payrollImported:today()},{merge:true})}catch(e){}
+  OLD=null;closeModal();
+  openModal(`<h3>✅ تم النقل<button class="x" onclick="closeModal()">×</button></h3><div class="rsum"><div><span>موظفين</span><b>${n.e}</b></div><div><span>دفعات</span><b>${n.s}</b></div><div><span>سلف</span><b>${n.l}</b></div><div><span>مستندات</span><b>${n.d}</b></div></div>
+  <p>راجع الموظفين والرواتب، وإذا كل شي تمام أقفل النظام القديم من الخطوات اللي أرسلتها لك.</p><div class="btns"><button class="btn gd" onclick="closeModal();go('home')">تمام</button></div>`)}
+
+/* ================= الإعدادات ================= */
+async function saveMeta(p){await dbSet('meta/main',{...clean(META()),...p});}
+function listEditor(key,title,ph){const L=META()[key]||(key==='roles'?DEF_ROLES:[]);return `<div class="card"><b>${title}</b><div class="opts" style="margin-top:8px">${L.map((x,i)=>`<button onclick="delListItem('${key}',${i})">${esc(x)} ✕</button>`).join('')||'<span class="small muted">فاضي</span>'}</div>
+  <div class="filters" style="margin-top:8px"><input id="add_${key}" placeholder="${ph}"><button class="btn sm" onclick="addListItem('${key}')">➕ إضافة</button></div></div>`}
+async function addListItem(k){const x=v('add_'+k);if(!x)return;const L=[...(META()[k]||(k==='roles'?DEF_ROLES:[]))];if(!L.includes(x))L.push(x);await saveMeta({[k]:L});toast('تمت الإضافة ✓')}
+async function delListItem(k,i){const L=[...(META()[k]||(k==='roles'?DEF_ROLES:[]))];if(!await ask(`حذف "${esc(L[i])}"؟`,'حذف'))return;L.splice(i,1);await saveMeta({[k]:L})}
+function vSet(){const M=META();return `<div class="card"><b>⚙️ عام</b><div class="form" style="margin-top:8px"><label>الاسم في التقارير<input id="sOwner" value="${esc(ownerName())}"></label><label>يوم صرف الراتب في الشهر<input id="sDay" inputmode="numeric" value="${payDay()}"><span class="small muted">بعده يعتبر الراتب متأخر</span></label></div>
+  <div class="btns"><button class="btn sm" onclick="saveMeta({ownerName:v('sOwner'),payDay:Math.min(31,Math.max(1,+v('sDay')||28))}).then(()=>toast('تم ✓'))">حفظ</button></div></div>
+  ${listEditor('roles','🏷️ المسميات','مسمى جديد')}${listEditor('banks','🏦 البنوك','اسم البنك')}${listEditor('beneficiaries','👤 المستفيدين من التحويل','اسم المستفيد')}
+  <div class="card"><b>📥 النظام القديم</b><p class="small muted">${M.migratedAt?'آخر نقل: '+fd(M.migratedAt.slice(0,10))+'. تقدر تعيده وما يتكرر شي.':'انقل كل بياناتك من النظام القديم.'}</p><div class="btns"><button class="btn sec2" onclick="migrate()">📥 نقل / تحديث من النظام القديم</button></div></div>
+  <div class="card"><b>💾 النسخ الاحتياطي</b><div class="btns"><button class="btn sec2" onclick="backup()">⬇️ تنزيل نسخة</button><button class="btn ghost" onclick="restore()">⬆️ استعادة</button></div></div>
+  <div class="card"><b>🎨 المظهر</b><div class="btns"><button class="btn sec2" onclick="toggleTheme()">🌓 الوضع الليلي/النهاري</button></div></div>
+  <div class="card"><b>👤 الحساب</b><p class="small muted">مسجل الدخول باسم <span class="num">${esc(fbUser&&fbUser.email||'')}</span></p><div class="btns"><button class="btn warn" onclick="logout()">🚪 تسجيل الخروج</button><a class="btn ghost" href="../">🏠 برامجي</a></div></div>`}
+function backup(){const d={app:'payroll',version:2,exportedAt:new Date().toISOString()};COLS.forEach(c=>d[c]=Object.fromEntries(Object.entries(S[c]).map(([k,x])=>[k,clean(x)])));saveFile(`نسخة-الرواتب-${today()}.json`,JSON.stringify(d))}
+function restore(){const inp=$('#restoreFile');inp.value='';inp.onchange=async()=>{try{const d=JSON.parse(await inp.files[0].text());if(d.app!=='payroll')throw 0;if(!await ask('استعادة النسخة ودمجها مع الحالية؟','استعادة'))return;let n=0;
+  for(const c of COLS)for(const[k,x]of Object.entries(d[c]||{})){await dbSet(c+'/'+k,x);n++}toast(`تمت الاستعادة (${n}) ✓`)}catch(e){toast('الملف غير صحيح')}};inp.click()}
+function applyTheme(){const t=localStorage.getItem('pr_theme')||'';if(t)document.documentElement.dataset.theme=t;else delete document.documentElement.dataset.theme;document.querySelector('meta[name=theme-color]').content=t==='dark'?'#08111d':'#0f1f33'}
+function toggleTheme(){localStorage.setItem('pr_theme',localStorage.getItem('pr_theme')==='dark'?'':'dark');applyTheme()}
+applyTheme();
+function openModal(html){$('#sheet').innerHTML=html;$('#modal').classList.remove('hidden');document.body.style.overflow='hidden';$('#sheet').scrollTop=0}
+function closeModal(){$('#modal').classList.add('hidden');document.body.style.overflow=''}
+function ask(msg,okLabel='تأكيد'){return new Promise(res=>{const prev=$('#modal').classList.contains('hidden')?null:$('#sheet').innerHTML;
+  openModal(`<h3>تأكيد<button class="x" id="noX">×</button></h3><p>${msg}</p><div class="btns"><button class="btn warn" id="okA">${okLabel}</button><button class="btn ghost" id="noA">إلغاء</button></div>`);
+  const back=()=>{if(prev)$('#sheet').innerHTML=prev;else closeModal()};$('#okA').onclick=()=>{back();res(true)};$('#noA').onclick=$('#noX').onclick=()=>{back();res(false)}})}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+
+</script>
+</body>
+</html>
