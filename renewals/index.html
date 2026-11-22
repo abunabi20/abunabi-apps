@@ -345,7 +345,7 @@ auth.onAuthStateChanged(u=>{
   COLS.forEach(c=>{unsubs.push(base.collection(c).onSnapshot({includeMetadataChanges:true},snap=>{
       S[c]=Object.fromEntries(snap.docs.map(d=>[d.id,{...d.data(),_id:d.id}]));
       if(!snap.metadata.fromCache)ok.add(c);
-      if(ok.size===COLS.length){clearTimeout(timer);$('#sync').textContent=snap.metadata.hasPendingWrites?'⏳ جاري الحفظ':'✅ متزامن';if(!loaded){loaded=true;setTimeout(dailyNotify,1500)}}
+      if(ok.size===COLS.length){clearTimeout(timer);$('#sync').textContent=snap.metadata.hasPendingWrites?'⏳ جاري الحفظ':'✅ متزامن';if(!loaded){loaded=true;setTimeout(dailyNotify,1500);setTimeout(()=>processPending(),4000)}}
       applyTheme();schedule_render();
     },err=>{clearTimeout(timer);$('#sync').textContent=err.code==='permission-denied'?'⛔ هذا الحساب ليس له صلاحية':'⚠️ خطأ في الاتصال';schedule_render()}))});
 });
@@ -460,6 +460,8 @@ function hero(it){const dl=daysLeft(it),st=status(it);const p=countdownParts(dl)
 function insights(){const out=[];const P=Object.values(S.people),V=Object.values(S.vehicles),A=activeItems();
   const has=(kind,id,type)=>A.some(i=>i.ownerKind===kind&&i.ownerId===id&&i.type===type);
   const self=P.find(p=>p.rel==='self');
+  const pend=Object.values(S.items).filter(i=>i.pending&&i.state!=='archived');if(pend.length)out.push({c:'amber',ic:'⏳',t:`${pend.length} مستند بانتظار القراءة`,s:'ما قدر الذكاء الاصطناعي يوصل وقتها، بيقراها تلقائياً أول ما يرجع الاتصال',a:'processPending(true)',b:'اقرأها الحين'});
+  const autoP=P.filter(p=>p.auto&&!p.reviewed);if(autoP.length)out.push({c:'blue',ic:'👤',t:`أضفت ${autoP.length} شخص تلقائياً من المستندات`,s:autoP.slice(0,3).map(p=>p.name+' ('+(REL[p.rel]||REL.other).l+')').join('، ')+'. تأكد من فئتهم وأضف صورهم',a:`editPerson('${autoP[0]._id}')`,b:'مراجعة'});
   if(!ST().payrollImported)out.push({c:'pri',ic:'📥',t:'عندك مستندات عمالة في نظام الرواتب',s:'أجيبها لك هنا بضغطة مع صور الموظفين بدل ما تدخلها من جديد',a:'importPayroll()',b:'استيراد'});
   if(!self)out.push({c:'blue',ic:'🙋‍♂️',t:'ما أضفت نفسك للحين',s:'أضف نفسك عشان نربط جوازك وهويتك ورخصتك وعمرتك فيك',a:`editPerson(null,{rel:'self',name:ownerName()})`,b:'إضافة'});
   P.filter(p=>p.rel==='worker').forEach(p=>{
@@ -534,7 +536,7 @@ function editPerson(id,pre){const p=id?S.people[id]:{rel:'family',...(pre||{})};
   <label class="full">ملاحظات<textarea id="pNotes" rows="2">${esc(p.notes)}</textarea></label></div>
   <div class="btns"><button class="btn" onclick="savePerson(${id?`'${id}'`:'null'})">💾 حفظ</button>${id?`<button class="btn warn" onclick="delPerson('${id}')">🗑️ حذف</button>`:''}</div>`)}
 async function savePerson(id){const name=v('pName');if(!name){toast('اكتب الاسم');return}
-  const pid=id||uid('p');const o={...(id?clean(S.people[id]):{createdAt:Date.now()}),name,rel:v('pRel'),relation:v('pRelation'),nationality:v('pNat'),phone:v('pPhone'),job:v('pJob'),notes:v('pNotes'),photo:tmpPhoto||''};
+  const pid=id||uid('p');const o={...(id?clean(S.people[id]):{createdAt:Date.now()}),reviewed:true,name,rel:v('pRel'),relation:v('pRelation'),nationality:v('pNat'),phone:v('pPhone'),job:v('pJob'),notes:v('pNotes'),photo:tmpPhoto||''};
   await dbSet('people/'+pid,o);toast('تم الحفظ ✓');closeModal();if(pendingOwner){resumePending('person',pid)}else openPersonLater(pid);return pid}
 function openPersonLater(id){setTimeout(()=>{if(S.people[id])openPerson(id)},350)}
 async function delPerson(id){const n=personItems(id).length;if(!await ask(`حذف ${esc(S.people[id].name)}؟${n?` وبتنحذف معه ${n} متابعات.`:''}`,'حذف'))return;
@@ -716,8 +718,8 @@ function startScan(pre){const inp=$('#scanFile');inp.value='';inp.onchange=()=>{
     <div class="grid g2"><div class="asst" style="--c:var(--pri);cursor:pointer" onclick="beginQueue(_mf.map(x=>[x]),_mp)"><div class="ic">📚</div><div class="tx"><b>كل صورة مستند منفصل</b><small>أقرأها وحدة وحدة وتراجعها بسرعة (${f.length} مستندات)</small></div></div>
     <div class="asst" style="--c:var(--blue);cursor:pointer" onclick="beginQueue([_mf],_mp)"><div class="ic">🪪</div><div class="tx"><b>كلها مستند واحد</b><small>مثل الوجه والخلف لنفس الإقامة أو الاستمارة</small></div></div></div>`)}
   else beginQueue([f],pre||{})};inp.click()}
-function beginQueue(groups,pre){queue=groups.map(g=>({files:g,pre:{...pre}}));qTotal=queue.length;qSaved=0;nextInQueue()}
-function nextInQueue(){scan=null;if(!queue.length){closeModal();if(qTotal>1)toast(`تم حفظ ${qSaved} من ${qTotal} مستندات ✓`);qTotal=0;return}
+function beginQueue(groups,pre){queue=groups.map(g=>({files:g,pre:{...pre}}));qTotal=queue.length;qSaved=0;autoResults=[];nextInQueue()}
+function nextInQueue(){scan=null;if(!queue.length){if(autoResults.length){qTotal=0;showAutoSummary();return}closeModal();if(qTotal>1)toast(`تم حفظ ${qSaved} من ${qTotal} مستندات ✓`);qTotal=0;return}
   const j=queue.shift();runScan(j.files,j.pre)}
 function cancelScan(){queue=[];qTotal=0;scan=null;closeModal()}
 const qLabel=()=>qTotal>1?` <span class="chip st-info">${qTotal-queue.length} من ${qTotal}</span>`:'';
@@ -728,9 +730,11 @@ async function runScan(files,pre){
   const ai=ST().ai||{};const prog=p=>{const e=$('#scanProg');if(e)e.style.width=Math.round(p*100)+'%'};
   const msg=t=>{const e=$('#scanBody p');if(e)e.innerHTML='<span class="spin"></span> '+t};
   let res=null;
-  if(ai.key){msg('🤖 الذكاء الاصطناعي يقرأ المستند ويصنفه...');prog(.35);try{res=await aiExtract(scan.imgs,ai);scan.engine='ai'}catch(e){console.warn(e);scan.aiErr=aiErrAr(e);toast('تعذر الاتصال بالذكاء الاصطناعي، نجرب القراءة المحلية')}}
+  if(ai.key){msg('🤖 الذكاء الاصطناعي يقرأ المستند ويصنفه...');prog(.35);try{res=await aiExtract(scan.imgs,ai);scan.engine='ai'}catch(e){console.warn(e);scan.aiErr=aiErrAr(e)}
+    if(!res&&AUTO()){msg('💾 حفظت الصورة، وبقراها أول ما يرجع الاتصال...');try{autoResults.push(await savePending());qSaved++}catch(e){}nextInQueue();return}}
   if(!res){msg('🔎 قراءة النص من الصورة (أول مرة تاخذ وقت أطول)...');try{let txt='';for(let k=0;k<scan.imgs.length;k++)txt+=(await ocr(await enhance(scan.imgs[k]),p=>prog((k+p)/scan.imgs.length)))+'\n';scan.raw=txt;res=parseText(txt);scan.engine='ocr'}catch(e){console.warn(e);res={};scan.engine='none'}}
   prog(1);applyExtract(res||{});
+  if(scan.engine==='ai'&&AUTO()&&!scan.d.kind){msg('💾 جاري الحفظ...');try{autoResults.push(await autoSaveScan());qSaved++;nextInQueue();return}catch(e){console.warn(e);toast('تعذر الحفظ التلقائي، راجع البيانات')}}
   if(ST().autoApprove&&isComplete(scan.d)&&(LEARN().types||{})[scan.d.type]?.n>=2&&scan.d.matched&&!scan.questions.length){scanForm();setTimeout(()=>saveScan(),80);return}
   scanForm()}
 function enhance(u){return new Promise(res=>{const im=new Image();im.onload=()=>{const s=Math.min(2.2,2000/Math.max(im.width,im.height));const w=Math.round(im.width*s),h=Math.round(im.height*s);
@@ -770,7 +774,10 @@ function matchPerson(name){const tk=s=>norm(s).replace(/[^\p{L}\s]/gu,' ').split
   const a=tk(name);if(!a.length)return null;let best=null,bs=0;
   Object.values(S.people).forEach(p=>{const b=tk(p.name);const sh=a.filter(w=>b.some(x=>x===w||x.includes(w)||w.includes(x))).length;const sc=sh/Math.min(a.length,b.length||1);if(sc>bs){bs=sc;best=p}});
   return bs>=.5?best:null}
-function matchVehicle(d){return Object.values(S.vehicles).find(c=>(d.plate&&c.plate&&normPlate(c.plate)===normPlate(d.plate))||(d.vin&&c.vin&&normPlate(c.vin)===normPlate(d.vin))||(d.serial&&c.serial&&normPlate(c.serial)===normPlate(d.serial)))||null}
+function matchVehicle(d){const V=Object.values(S.vehicles);const ex=V.find(c=>(d.plate&&c.plate&&normPlate(c.plate)===normPlate(d.plate))||(d.vin&&c.vin&&normPlate(c.vin)===normPlate(d.vin))||(d.serial&&c.serial&&normPlate(c.serial)===normPlate(d.serial)));if(ex)return ex;
+  const dg=x=>toEn(x||'').replace(/\D/g,'');const pd0=dg(d.plate);if(pd0.length>=3){const M=V.filter(c=>dg(c.plate)===pd0);if(M.length===1)return M[0]}
+  const nm=norm([d.make,d.model].join(' '));if(nm.trim()){const M=V.filter(c=>{const cn=norm([c.name,c.make,c.model].join(' '));return cn.trim()&&nm.split(/\s+/).some(w=>w.length>2&&cn.includes(w))});if(M.length===1&&!d.plate)return M[0]}
+  return null}
 
 function reviewHTML(d){const t=T(d.type);
   if(t.ref)return `<div class="card st-info" style="border-right:5px solid var(--c)"><b style="font-size:17px">📁 ${esc(d.title||'مستند')}</b><div class="small muted">مستند مرجعي بدون انتهاء · ${esc(catById(d.cat||(d.ownerKind==='vehicle'?'car':d.ownerKind==='person'?((S.people[d.ownerId]||{}).rel||'other'):'none')).name)}</div>
@@ -873,7 +880,7 @@ function learnPrompt(){const L=LEARN();const parts=[];
   const names=Object.entries(L.names||{}).filter(([n,id])=>S.people[id]).slice(0,30).map(([n,id])=>`"${n}" = ${S.people[id].name}`);
   if(names.length)parts.push('أسماء تعرفنا عليها سابقاً (الاسم في المستند = الشخص المسجل): '+names.join('، '));
   return parts.length?'\n\nتعلّم من مراجعات المستخدم السابقة وطبقها على المستندات المشابهة:\n'+parts.slice(0,30).join('\n'):''}
-async function aiExtract(imgs,ai){ai={...ai,key:cleanKey(ai.key)};const b64=imgs.map(u=>u.split(',')[1]);let txt='';
+async function aiExtract(imgs,ai){ai={...ai,key:cleanKey(ai.key)};const b64=(await Promise.all(imgs.map(aiShrink))).map(u=>u.split(',')[1]);let txt='';
   if((ai.provider||'gemini')==='gemini'){
     const j=await gemini(ai,{contents:[{parts:[{text:aiPrompt()},...b64.map(d=>({inline_data:{mime_type:'image/jpeg',data:d}}))]}],generationConfig:{responseMimeType:'application/json',temperature:0.1}});
     txt=((j.candidates||[])[0]?.content?.parts||[]).map(p=>p.text||'').join('')}
@@ -887,8 +894,9 @@ const cleanKey=k=>String(k||'').replace(/[^\x21-\x7E]/g,'');
 const GEM_MODELS=['gemini-flash-latest','gemini-2.5-flash','gemini-2.0-flash','gemini-flash-lite-latest'];
 async function gemini(ai,body){const key=cleanKey(ai.key);if(!key)throw new Error('NOKEY');const models=ai.model?[ai.model,...GEM_MODELS]:GEM_MODELS;let last;
   for(const m of [...new Set(models)]){let r;
-    try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',body:JSON.stringify(body)})}
-    catch(e){throw new Error('NET')}
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
+    for(let a=0;a<2&&!r;a++){const ac=new AbortController();const tm=setTimeout(()=>ac.abort(),40000);
+      try{r=await fetch(url,{method:'POST',body:JSON.stringify(body),signal:ac.signal})}catch(e){if(a)throw new Error('NET');await new Promise(z=>setTimeout(z,1500))}finally{clearTimeout(tm)}}
     const j=await r.json().catch(()=>({}));if(r.ok)return j;
     last=new Error((j.error&&j.error.message)||('HTTP '+r.status));
     if(![404,429,500,503].includes(r.status))throw last}
@@ -981,7 +989,7 @@ function thumbHTML(it,sz=56){const o=ownerOf(it);const t=T(it.type);
   if(it.thumb)return `<div class="av" style="width:${sz}px;height:${sz}px"><img src="${it.thumb}" alt=""><span class="tb">${t.ic}</span></div>`;
   return avatarHTML(it,sz)}
 function libRow(it){const ref=isRef(it);const st=ref?'info':status(it);const dl=daysLeft(it);const nAtt=(it.imgs||[]).length+(it.files||[]).length;
-  const sub=ref?[it.provider,it.number&&'<span class="num">'+esc(it.number)+'</span>',it.phone&&'<span class="num">'+esc(it.phone)+'</span>'].filter(Boolean).map(x=>x.startsWith('<')?x:esc(x)).join(' · '):(dueDate(it)?fd(dueDate(it))+' · '+(dl<0?'منتهي':dl+' يوم'):'بدون تاريخ');
+  const sub=it.pending?'⏳ بيقراه الذكاء الاصطناعي أول ما يرجع الاتصال':ref?[it.provider,it.number&&'<span class="num">'+esc(it.number)+'</span>',it.phone&&'<span class="num">'+esc(it.phone)+'</span>'].filter(Boolean).map(x=>x.startsWith('<')?x:esc(x)).join(' · '):(dueDate(it)?fd(dueDate(it))+' · '+(dl<0?'منتهي':dl+' يوم'):'بدون تاريخ');
   return `<div class="lr st-${st}" onclick="openItem('${it._id}')">${thumbHTML(it)}
    <div class="mid"><b>${t_ic(it)} ${esc(tLabel(it))}${it.ownerKind&&it.ownerKind!=='none'?' · '+esc(ownerLabel(it)):''}</b><small>${sub||'&nbsp;'}</small>
     <small>${ref?'<span class="chip st-info">📁 مرجعي</span> ':`<span class="chip st-${st}">${STL[st]}</span> `}${nAtt?`<span class="chip st-arch">📎 ${nAtt}</span>`:'<span class="chip st-arch">بدون صورة</span>'}</small></div>
@@ -1045,6 +1053,8 @@ function attachHTML(it){const imgs=it.imgs||[],files=it.files||[];if(!imgs.lengt
 function linkBoxHTML(id){return `<div class="card" style="margin-top:12px;padding:12px"><div class="small muted" style="margin-bottom:6px">🔗 رابط هذا المستند (يفتحه مباشرة من أي جهاز بعد الدخول)</div>
   <div style="display:flex;gap:6px"><input value="${esc(docLink(id))}" dir="ltr" readonly onfocus="this.select()" style="font-size:12px"><button class="btn sm" onclick="copyLink('${id}')">نسخ</button><button class="btn sm sec2" onclick="shareLink('${id}')">مشاركة</button></div></div>`}
 function openRef(id){const it=S.items[id];const c=catById(catOf(it));
+  if(it.pending){openModal(`<h3>⏳ بانتظار القراءة<button class="x" onclick="closeModal()">×</button></h3><p class="small muted">حفظت الصورة لأن الاتصال بالذكاء الاصطناعي ما نجح وقتها. بقراها وأصنفها تلقائياً أول ما يرجع الاتصال، أو اضغط تحت.</p>${attachHTML(it)}
+    <div class="btns"><button class="btn" onclick="closeModal();processPending(true)">🤖 اقرأه الحين</button><button class="btn ghost" onclick="editItem('${id}')">✏️ أعبيه بنفسي</button><button class="btn warn" onclick="delItem('${id}')">🗑️</button></div>`);loadSheetImgs(it);return}
   openModal(`<h3>📁 ${esc(tLabel(it))}<button class="x" onclick="closeModal()">×</button></h3>
   <dl class="kv"><dt>التصنيف</dt><dd>${c.ic} ${esc(c.name)}</dd>${it.ownerKind&&it.ownerKind!=='none'?`<dt>لمن</dt><dd>${esc(ownerLabel(it))}</dd>`:''}${it.provider?`<dt>الجهة / المحل</dt><dd>${esc(it.provider)}</dd>`:''}${it.number?`<dt>الرقم</dt><dd class="num">${esc(it.number)}</dd>`:''}
    ${it.phone?`<dt>الجوال</dt><dd><a class="num" href="tel:${esc(it.phone)}">${esc(it.phone)}</a> · <a target="_blank" href="${waLink(it.phone,'السلام عليكم')}">واتساب</a></dd>`:''}${it.url?`<dt>الموقع</dt><dd><a target="_blank" rel="noopener" dir="ltr" href="${esc(/^https?:/.test(it.url)?it.url:'https://'+it.url)}">${esc(it.url)}</a></dd>`:''}${it.notes?`<dt>ملاحظات</dt><dd>${esc(it.notes)}</dd>`:''}<dt>أضيف</dt><dd>${it.createdAt?fd(iso(new Date(it.createdAt))):'-'}</dd></dl>
@@ -1053,6 +1063,61 @@ function openRef(id){const it=S.items[id];const c=catById(catOf(it));
   loadSheetImgs(it)}
 function loadSheetImgs(it){document.querySelectorAll('#sheet img[data-img]').forEach(async im=>{im.src=await imgGet(im.dataset.img)||''});
   if(!it.thumb&&(it.imgs||[]).length&&!T(it.type).noImg)imgGet(it.imgs[0]).then(async d=>{if(!d)return;const th=await makeThumb(d);if(th&&S.items[it._id])base.collection('items').doc(it._id).set({thumb:th},{merge:true})})}
+/* ================= الحفظ التلقائي + القراءة المؤجلة ================= */
+let autoResults=[];
+const AUTO=()=>ST().autoApprove!==false;
+async function aiShrink(u){try{return await compress(dataToBlob(u),1280,.8)}catch(e){return u}}
+async function autoOwner(d){if(d.ownerKind)return;const t=d.type?T(d.type):null;const L=JSON.parse(JSON.stringify(clean(LEARN())));L.names=L.names||{};L.plates=L.plates||{};
+  if(t&&t.owner==='none')return void(d.ownerKind='none');
+  if((t&&t.owner==='vehicle')||(!t||t.ref)&&(d.plate||d.vin)){if(!(d.plate||d.vin||d.make)){d.ownerKind='none';return}
+    const id=uid('v');const o={name:'',make:d.make||'',model:d.model||'',year:d.year||'',color:d.color||'',plate:d.plate||'',vin:d.vin||'',serial:d.serial||'',auto:true,createdAt:Date.now()};
+    await dbSet('vehicles/'+id,o);S.vehicles[id]={...o,_id:id};[d.plate,d.vin,d.serial].filter(Boolean).forEach(k=>L.plates[normPlate(k)]=id);await dbSet('settings/learn',L);d.ownerKind='vehicle';d.ownerId=id;d.newOwner=true;return}
+  if(d.holderName&&!(t&&t.ref&&!d.holderName)){const lr=t&&((LEARN().types||{})[d.type]||{}).rel;const rel=lr||(['iqama','work_permit','exit_reentry'].includes(d.type)?'worker':'other');
+    const id=uid('p');const o={name:d.holderName,rel,nationality:d.nationality||'',job:d.job||'',auto:true,createdAt:Date.now()};await dbSet('people/'+id,o);S.people[id]={...o,_id:id};
+    L.names[norm(d.holderName)]=id;await dbSet('settings/learn',L);d.ownerKind='person';d.ownerId=id;d.newOwner=true;return}
+  d.ownerKind='none';d.ownerId=''}
+async function autoSaveScan(opt={}){const d=scan.d;
+  if(!d.type||!TYPES[d.type]){d.type='ref'}
+  const t=T(d.type);if(t.ref&&!d.title)d.title=[d.provider,d.holderName].filter(Boolean).join(' · ')||'مستند';
+  await autoOwner(d);
+  const ex=!t.ref&&d.ownerKind&&d.ownerKind!=='none'?activeItems().find(i=>i.type===d.type&&i.ownerKind===d.ownerKind&&i.ownerId===d.ownerId&&i._id!==opt.pendingId):null;
+  let imgs=opt.imgIds||[];if(!opt.imgIds&&!t.noImg)for(const x of scan.imgs){try{imgs.push(await imgPut(x))}catch(e){}}
+  if(t.noImg){for(const x of imgs)await imgDel(x);imgs=[]}
+  const thumb=t.noImg?'':(opt.thumb||await makeThumb(scan.imgs[0]));
+  const pick=k=>d[k]!=null&&d[k]!==''?d[k]:undefined;
+  let id,action;
+  if(ex){const u={...clean(ex)};const old=dueDate(ex);const nd=t.periodic?d.lastDone:d.expiry;action='same';
+    if(nd&&(!old||nd>old)){if(old)await dbSet('history/'+uid('h'),{itemId:ex._id,type:d.type,title:tLabel(ex),ownerKind:ex.ownerKind,ownerId:ex.ownerId,ownerLabel:ownerLabel(ex),oldDue:old,newDue:t.periodic?iso(addMonths(pd(nd),+(ex.interval||t.interval))):nd,renewedOn:today(),cost:costOf(ex),fine:fineAt(ex),lateDays:Math.max(0,dBetween(old,today())),note:'تحديث تلقائي من التصوير'});
+      if(t.periodic)u.lastDone=nd;else{u.expiry=nd;if(d.issue)u.issue=d.issue}if(d.number)u.number=d.number;u.state='active';action='renewed'}
+    u.imgs=[...(ex.imgs||[]),...imgs];if(thumb)u.thumb=thumb;await dbSet('items/'+ex._id,u);id=ex._id;if(opt.pendingId)await dbDel('items/'+opt.pendingId)}
+  else{id=opt.pendingId||uid('i');action='new';
+    const o={type:d.type,title:pick('title')||'',ownerKind:d.ownerKind||'none',ownerId:d.ownerId||'',number:pick('number')||'',provider:pick('provider')||'',issue:pick('issue')||'',state:'active',imgs,thumb,engine:'ai',auto:true,createdAt:Date.now()};
+    if(t.ref){o.phone=pick('phone')||'';o.url=pick('url')||'';o.notes=pick('notes')||''}else if(t.periodic)o.lastDone=pick('lastDone')||'';else o.expiry=pick('expiry')||'';
+    for(const k of ['cost','alert','period'])if(d[k]!=null&&d[k]!==''&&!t.ref)o[k]=+d[k];if(d.cat)o.cat=d.cat;
+    await dbSet('items/'+id,o)}
+  await learnFrom({type:d.type,ownerKind:d.ownerKind,ownerId:d.ownerId,number:d.number,provider:d.provider,expiry:d.expiry,issue:d.issue,lastDone:d.lastDone,cost:d.cost,alert:d.alert,period:d.period});
+  return {id,action,newOwner:!!d.newOwner}}
+async function savePending(){const imgs=[];for(const x of scan.imgs){try{imgs.push(await imgPut(x))}catch(e){}}const thumb=await makeThumb(scan.imgs[0]);const id=uid('i');
+  const pre={...scan.d};delete pre.kind;
+  await dbSet('items/'+id,{type:'ref',title:'📸 بانتظار القراءة',pending:true,pre,ownerKind:'none',ownerId:'',imgs,thumb,state:'active',createdAt:Date.now()});return {id,action:'pending'}}
+function showAutoSummary(){const R=autoResults;autoResults=[];const n=R.length;
+  if(n===1&&R[0].action!=='pending'){closeModal();toast(R[0].action==='renewed'?'🔄 حدّثت المستند الموجود بالتاريخ الجديد ✓':'✅ قريته وحفظته تلقائياً');setTimeout(()=>openItem(R[0].id),250);return}
+  const lbl={new:'✅ جديد',renewed:'🔄 تحديث',same:'📎 أضفت الصورة',pending:'⏳ بانتظار القراءة'};
+  openModal(`<h3>🤖 تم الحفظ تلقائياً<button class="x" onclick="closeModal()">×</button></h3>
+  ${R.some(r=>r.action==='pending')?`<div class="qbox" style="background:var(--amberSoft);border-color:var(--amber)"><b style="color:var(--amber)">⏳ ما قدرت أوصل للذكاء الاصطناعي الحين</b><div class="small">حفظت الصور، وبقراها وأصنفها تلقائياً أول ما يرجع الاتصال. وإذا الواي فاي حقك يحجب Google، افتح البرنامج على بيانات الجوال.</div></div>`:''}
+  ${R.map(r=>S.items[r.id]?`<div class="small muted" style="margin:4px 6px">${lbl[r.action]}${r.newOwner?' · أضفت صاحبه كجديد':''}</div>${libRow(S.items[r.id])}`:'').join('')}
+  <p class="small muted">اضغط أي مستند تراجعه أو تعدله.</p><div class="btns"><button class="btn" onclick="closeModal()">تمام</button></div>`)}
+let pendBusy=false;
+async function processPending(force){if(pendBusy||!base)return;const ai=ST().ai||{};if(!ai.key)return;
+  const P=Object.values(S.items).filter(i=>i.pending&&i.state!=='archived');if(!P.length)return;if(scan&&!force)return;
+  pendBusy=true;let ok=0,fail='';if(force)toast('🤖 جاري قراءة المستندات المعلّقة...');
+  for(const it of P){try{const imgs=(await Promise.all((it.imgs||[]).map(imgGet))).filter(Boolean);if(!imgs.length)continue;
+      const res=await aiExtract(imgs,ai);const keep=scan;scan={imgs,d:{...(it.pre||{})},questions:[],raw:'',engine:'ai'};
+      try{applyExtract(res);await autoSaveScan({imgIds:it.imgs||[],thumb:it.thumb,pendingId:it._id});ok++}finally{scan=keep}}
+    catch(e){fail=aiErrAr(e);if(String(e.message)==='NET')break}}
+  pendBusy=false;if(ok)toast(`🤖 قريت ${ok} مستند كانت بانتظار القراءة ✓`);else if(force&&fail)toast('❌ '+fail)}
+window.addEventListener('online',()=>setTimeout(()=>processPending(),3000));
+setInterval(()=>processPending(),5*60*1000);
 /* ---------- التقويم ---------- */
 function vCal(){const A=activeItems().filter(i=>dueDate(i));const start=new Date();start.setDate(1);
   const late=A.filter(i=>daysLeft(i)<0);
@@ -1170,7 +1235,7 @@ function vSet(){const st=ST(),ai=st.ai||{};
    <label>الموديل (اختياري)<input id="aiModel" dir="ltr" value="${esc(ai.model||'')}" placeholder="gemini-flash-latest / claude-haiku-5-5"></label></div>
    <div class="btns"><button class="btn sm" onclick="saveSettings({ai:{provider:v('aiProv'),key:cleanKey(v('aiKey')),model:v('aiModel')}}).then(testAI)">حفظ واختبار</button><span class="small" id="aiTest">${esc(localStorage.getItem('rn_aitest')||'')}</span></div>
    <div class="qbox" style="margin-top:10px"><b>طريقة تطليع المفتاح المجاني (دقيقة وحدة)</b><ol class="small" style="margin:4px 0;padding-right:18px"><li>اضغط الزر تحت وادخل بحساب Gmail حقك</li><li>اضغط <b>Create API key</b> واختر أي مشروع أو اضغط Create</li><li>اضغط نسخ 📋 ورجع هنا والصقه في خانة المفتاح</li><li>اضغط <b>حفظ</b> ثم <b>اختبار</b></li></ol><a class="btn sm" target="_blank" href="https://aistudio.google.com/apikey">🔑 افتح صفحة المفتاح</a></div>
-   <div class="divider"></div><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" style="width:auto" ${st.autoApprove?'checked':''} onchange="saveSettings({autoApprove:this.checked})"> اعتماد تلقائي بدون مراجعة للمستندات اللي عرفها من قبل (نفس النوع ونفس الشخص) وبياناتها كاملة</label>
+   <div class="divider"></div><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" style="width:auto" ${st.autoApprove!==false?'checked':''} onchange="saveSettings({autoApprove:this.checked})"> حفظ تلقائي: أول ما يقرأ الذكاء الاصطناعي المستند يحفظه باسم صاحبه بدون ما يسألك (وتقدر تعدله بعدين)</label>
    <p class="small muted">🧠 تعلّم من مراجعاتك: ${Object.values((S.settings.learn||{}).types||{}).reduce((a,t)=>a+(t.n||0),0)} مستند، ويعرف ${Object.keys((S.settings.learn||{}).names||{}).length} اسم و ${Object.keys((S.settings.learn||{}).plates||{}).length} لوحة. كل ما راجعت أكثر صار أدق.</p>
    <div class="btns"><button class="btn sm ghost" onclick="forgetLearning()">مسح التعلّم</button></div></div>
   <div class="card"><b>⏱️ أنواع المتابعات: التنبيه والتكلفة والغرامة</b><p class="small muted">هذي القيم الافتراضية لكل نوع، وتقدر تغيرها لأي متابعة لوحدها من شاشة التعديل. الغرامات المكتوب عليها "تقديرية" تأكد منها من الجهة الرسمية.</p>
