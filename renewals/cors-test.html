@@ -1,0 +1,8 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>t</title></head><body><pre id="o">running</pre><script>
+const o=document.getElementById('o');const log=s=>o.textContent+='\n'+s;
+(async()=>{for(const [name,url,h] of [
+ ['header','https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',{'Content-Type':'application/json','x-goog-api-key':'AIzaFAKEKEY'}],
+ ['query','https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=AIzaFAKEKEY',{'Content-Type':'application/json'}]]){
+ try{const r=await fetch(url,{method:'POST',headers:h,body:JSON.stringify({contents:[{parts:[{text:'hi'}]}]})});log(name+': HTTP '+r.status+' '+(await r.text()).slice(0,120))}catch(e){log(name+': ERR '+e.message)}}
+log('done')})();
+</script></body></html>
