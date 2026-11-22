@@ -451,6 +451,7 @@ function hero(it){const dl=daysLeft(it),st=status(it);const p=countdownParts(dl)
 function insights(){const out=[];const P=Object.values(S.people),V=Object.values(S.vehicles),A=activeItems();
   const has=(kind,id,type)=>A.some(i=>i.ownerKind===kind&&i.ownerId===id&&i.type===type);
   const self=P.find(p=>p.rel==='self');
+  if(!ST().payrollImported)out.push({c:'pri',ic:'📥',t:'عندك مستندات عمالة في نظام الرواتب',s:'أجيبها لك هنا بضغطة مع صور الموظفين بدل ما تدخلها من جديد',a:'importPayroll()',b:'استيراد'});
   if(!self)out.push({c:'blue',ic:'🙋‍♂️',t:'ما أضفت نفسك للحين',s:'أضف نفسك عشان نربط جوازك وهويتك ورخصتك وعمرتك فيك',a:`editPerson(null,{rel:'self',name:ownerName()})`,b:'إضافة'});
   P.filter(p=>p.rel==='worker').forEach(p=>{
     if(!has('person',p._id,'iqama'))out.push({c:'amber',ic:'🪪',t:`ما سجلت إقامة ${p.name}`,s:'الإقامة أهم شي للعمالة، غرامة تأخيرها تبدأ من 500 ريال',a:`quickAdd('iqama','person','${p._id}')`,b:'إضافة'});
@@ -904,6 +905,40 @@ function parseText(raw){const t=toEn(raw);const low=norm(t);const r={questions:[
   const nm=t.match(/(?:الاسم|Name)\s*[:：]?\s*([^\n]{3,40})/i);if(nm)r.holderName=nm[1].trim();
   return r}
 
+/* ================= الاستيراد من نظام الرواتب ================= */
+const PAYROLL_URL='https://salary-abunabi-default-rtdb.firebaseio.com/payroll';
+const PR_TYPES={'إقامة':'iqama','اقامة':'iqama','اقامه':'iqama','هوية مقيم':'iqama','جواز سفر':'passport','جواز':'passport','رخصة قيادة':'driving_license','تصريح عمل':'work_permit','رخصة عمل':'work_permit','تأمين صحي':'medical_ins','تأمين طبي':'medical_ins','خروج وعودة':'exit_reentry','تأشيرة خروج وعودة':'exit_reentry'};
+let PR=null;
+const arr=x=>Array.isArray(x)?x.filter(Boolean):Object.values(x||{}).filter(Boolean);
+function prPerson(e){return Object.values(S.people).find(p=>p.src==='payroll:'+e.id)||matchPerson(e.name)}
+function prItem(d,pid,type){return Object.values(S.items).find(i=>i.src==='payroll:doc:'+d.id)||(pid&&Object.values(S.items).find(i=>i.ownerKind==='person'&&i.ownerId===pid&&i.type===type&&i.state!=='archived'&&(type!=='other'||i.title===d.type)))}
+async function importPayroll(){openModal(`<h3>📥 استيراد من نظام الرواتب<button class="x" onclick="closeModal()">×</button></h3><p><span class="spin"></span> جاري جلب الموظفين والمستندات...</p>`);
+  try{const get=u=>fetch(u).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});const[em,dc]=await Promise.all([get(PAYROLL_URL+'/employees.json'),get(PAYROLL_URL+'/docs.json')]);
+    PR={emps:arr(em),docs:arr(dc).filter(d=>d.expire)}}catch(e){openModal(`<h3>📥 استيراد<button class="x" onclick="closeModal()">×</button></h3><p>تعذر الوصول لنظام الرواتب: ${esc(aiErrAr(e))}</p>`);return}
+  const rows=PR.emps.map(e=>{const ds=PR.docs.filter(d=>d.empId==e.id);const ex=prPerson(e);
+    return `<div class="asst" style="--c:var(--${ex?'grey':'pri'})"><div class="av" style="width:46px;height:46px">${e.photo?`<img src="${esc(e.photo)}">`:'👷'}</div><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.role||'')}${e.status==='leave'?' · في إجازة':''} · ${ex?'موجود عندك، بحدّث بياناته':'جديد'}</small>
+    <div class="opts">${ds.map(d=>{const t=PR_TYPES[String(d.type).trim()]||'other';const dl=dBetween(today(),d.expire);return `<span class="chip st-${dl<0?'expired':dl<=T(t).alert?'soon':'ok'}">${T(t).ic} ${esc(d.type)}: ${fd(d.expire)}</span>`}).join('')||'<span class="small muted">ما له مستندات</span>'}</div></div></div>`}).join('');
+  const orphan=PR.docs.filter(d=>!PR.emps.some(e=>e.id==d.empId)).length;
+  openModal(`<h3>📥 من نظام الرواتب<button class="x" onclick="closeModal()">×</button></h3>
+  <p>لقيت <b>${PR.emps.length}</b> موظفين و <b>${PR.docs.length}</b> مستندات مراقبة. بضيفهم كعمالة مع صورهم، وكل مستند بنوعه وتاريخه.${orphan?` (${orphan} مستند بدون موظف بيتم تجاهله)`:''}</p>
+  ${rows}<p class="small muted">تقدر تعيد الاستيراد بعدين وما يتكرر شي، بس يحدّث التواريخ لو تغيرت.</p>
+  <div class="btns"><button class="btn" id="prGo" onclick="doImportPayroll()">✅ استورد الكل</button><button class="btn ghost" onclick="closeModal()">إلغاء</button></div>`)}
+async function doImportPayroll(){if(!PR)return;const b=$('#prGo');if(b){b.disabled=true;b.innerHTML='<span class="spin"></span> جاري الاستيراد...'}
+  let np=0,up=0,ni=0,ui=0;const L=JSON.parse(JSON.stringify(clean(LEARN())));L.names=L.names||{};
+  for(const e of PR.emps){const ds=PR.docs.filter(d=>d.empId==e.id);const ex=prPerson(e);const pid=ex?ex._id:uid('p');
+    let photo=ex&&ex.photo||'';if(!photo&&e.photo&&String(e.photo).startsWith('data:')){try{photo=await compress(dataToBlob(e.photo),420,.75)}catch(x){}}
+    const o=ex?{...clean(ex)}:{createdAt:Date.now(),rel:'worker'};
+    Object.assign(o,{name:o.name||e.name,job:o.job||e.role||'',photo,src:'payroll:'+e.id});if(!o.rel)o.rel='worker';
+    if(e.status==='leave'&&!/إجازة/.test(o.notes||''))o.notes=[o.notes,'في إجازة'+(e.leaveDate?' منذ '+fd(e.leaveDate):'')].filter(Boolean).join(' · ');
+    await dbSet('people/'+pid,o);ex?up++:np++;S.people[pid]={...o,_id:pid};L.names[norm(e.name)]=pid;
+    for(const d of ds){const type=PR_TYPES[String(d.type).trim()]||'other';const it=prItem(d,pid,type);
+      const num=/[0-9A-Za-z]/.test(d.number||'')?String(d.number).trim():'';
+      if(it){const u={...clean(it),src:'payroll:doc:'+d.id};if(!it.expiry||d.expire>it.expiry){u.expiry=d.expire;if(d.issue)u.issue=d.issue;if(num)u.number=num;u.state='active'}if(!u.number&&num)u.number=num;await dbSet('items/'+it._id,u);ui++}
+      else{const nt=d.notes&&!PR_TYPES[String(d.notes).trim()]&&norm(d.notes)!==norm(d.type)?d.notes:'';
+        await dbSet('items/'+uid('i'),{type,title:type==='other'?d.type:'',ownerKind:'person',ownerId:pid,number:num,issue:d.issue||'',expiry:d.expire,notes:nt,state:'active',imgs:[],src:'payroll:doc:'+d.id,createdAt:Date.now()});ni++}}}
+  await dbSet('settings/learn',L);await saveSettings({payrollImported:today()});PR=null;closeModal();
+  toast(`تم: ${np} عامل جديد و ${ni} مستند جديد${up||ui?`، وتحديث ${up+ui}`:''} ✓`);F.kind='worker';F.st='active';F.type='all';F.q='';go('items')}
+
 /* ---------- التقويم ---------- */
 function vCal(){const A=activeItems().filter(i=>dueDate(i));const start=new Date();start.setDate(1);
   const late=A.filter(i=>daysLeft(i)<0);
@@ -1030,6 +1065,7 @@ function vSet(){const st=ST(),ai=st.ai||{};
    <td>${t.periodic?'-':`<select data-k="${k}" data-f="fk" style="width:150px">${Object.entries(FINE_K).map(([fk,l])=>`<option value="${fk}" ${t.fine.k===fk?'selected':''}>${l}</option>`).join('')}</select>`}</td>
    <td>${t.periodic?'':`<input data-k="${k}" data-f="fa" value="${t.fine.a||0}" style="width:75px" inputmode="decimal">`}</td><td>${t.periodic?'':`<input data-k="${k}" data-f="fr" value="${t.fine.rep||''}" style="width:75px" inputmode="decimal">`}</td><td>${t.periodic?'':`<input data-k="${k}" data-f="fg" value="${t.fine.grace||0}" style="width:60px" inputmode="numeric">`}</td></tr>`}).join('')}</tbody></table></div>
    <div class="btns"><button class="btn" onclick="saveTypes()">💾 حفظ الإعدادات</button><button class="btn ghost" onclick="resetTypes()">↩️ إرجاع الافتراضي</button></div></div>
+  <div class="card"><b>📥 الاستيراد من برامجي</b><p class="small muted">يجيب الموظفين ومستنداتهم المراقبة (الإقامات والجوازات وغيرها) من نظام إدارة الرواتب مع صورهم. تقدر تعيده أي وقت وما يتكرر شي.${st.payrollImported?' آخر استيراد: '+fd(st.payrollImported):''}</p><div class="btns"><button class="btn sec2" onclick="importPayroll()">📥 استيراد من نظام الرواتب</button></div></div>
   <div class="card"><b>💾 النسخ الاحتياطي</b><p class="small muted">بياناتك محفوظة في حسابك وتتزامن تلقائياً، وهذي نسخة إضافية للاحتياط.</p>
    <div class="btns"><button class="btn sec2" onclick="backup(false)">⬇️ نسخة بدون صور</button><button class="btn sec2" onclick="backup(true)">⬇️ نسخة مع الصور</button><button class="btn ghost" onclick="restore()">⬆️ استعادة من ملف</button></div></div>
   <div class="card"><b>🎨 المظهر</b><div class="btns"><button class="btn sec2" onclick="toggleTheme()">🌓 تبديل الوضع الليلي/النهاري</button></div></div>
