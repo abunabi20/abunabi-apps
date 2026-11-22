@@ -591,7 +591,7 @@ function openItem(id){const it=S.items[id];if(!it)return;if(isRef(it))return ope
    <div class="clock">${dl==null?'':`<div><b>${Math.abs(dl)}</b><span>${dl<0?'يوم تأخير':'يوم باقي'}</span></div>`}<div><b style="font-size:14px">${STL[st]}</b><span>الحالة</span></div>${fineAt(it)?`<div><b style="color:var(--red)">${nf(fineAt(it))}</b><span>غرامة الآن</span></div>`:''}</div></div></div>
   <dl class="kv">${it.number?`<dt>الرقم</dt><dd class="num">${esc(maskNum(it))}</dd>`:''}${it.provider?`<dt>${it.type==='bank_card'?'البنك':'الجهة'}</dt><dd>${esc(it.provider)}</dd>`:''}
    ${t.periodic?`<dt>آخر مرة</dt><dd>${fd(it.lastDone)}</dd><dt>كل</dt><dd>${+(it.interval||t.interval)} شهر</dd>`:`${it.issue?`<dt>الإصدار</dt><dd>${fd(it.issue)} · ${hijS(it.issue)}</dd>`:''}<dt>الانتهاء</dt><dd>${fd(it.expiry)} · ${hijS(it.expiry)}</dd>`}
-   <dt>التنبيه قبل</dt><dd>${alertOf(it)} يوم${d?' ('+fd(iso(addDays(pd(d),-alertOf(it))))+')':''}</dd>
+   <dt>التنبيه قبل</dt><dd>${alertOf(it)} يوم${d?' ('+fd(iso(addDays(pd(d),-alertOf(it))))+') <a href="#" onclick="calMenu(\''+id+'\');return false" style="color:var(--pri)">📅 أضفه للتقويم</a>':''}</dd>
    <dt>تكلفة التجديد</dt><dd>${money(costOf(it))}</dd>
    <dt>الغرامة</dt><dd>${f.k==='none'?'لا يوجد':`${nf(it.repeat&&f.rep?f.rep:f.a)} ر.س ${FINE_K[f.k]}${+f.grace?` (مهلة ${f.grace} أيام)`:''}${t.est&&it.fineA==null?' · تقديرية':''}`}</dd>
    ${t.where?`<dt>مكان التجديد</dt><dd>${esc(t.where)}</dd>`:''}${t.req?`<dt>المتطلبات</dt><dd>${esc(t.req)}</dd>`:''}${t.tip?`<dt>تنبيه</dt><dd>${esc(t.tip)}</dd>`:''}${it.notes?`<dt>ملاحظات</dt><dd>${esc(it.notes)}</dd>`:''}</dl>
@@ -599,7 +599,7 @@ function openItem(id){const it=S.items[id];if(!it)return;if(isRef(it))return ope
   ${t.noImg?'':attachHTML(it)}${linkBoxHTML(id)}
   <div class="btns"><button class="btn" onclick="renewItem('${id}')">${t.periodic?'✅ سجّل أنك أديتها':'🔄 تم التجديد'}</button>
    ${!t.periodic&&it.state!=='renewing'?`<button class="btn sec2" onclick="setState('${id}','renewing')">⏳ قيد التجديد</button>`:''}${it.state==='renewing'?`<button class="btn sec2" onclick="setState('${id}','active')">↩️ إلغاء قيد التجديد</button>`:''}
-   <button class="btn ghost" onclick="editItem('${id}')">✏️ تعديل</button>${t.noImg?'':`<button class="btn ghost" onclick="addFiles('${id}')">📎 إضافة صورة أو ملف</button>`}<button class="btn ghost" onclick="moveToCat('${id}')">📂 نقل لتصنيف</button><button class="btn ghost" onclick="dlICS(['${id}'])">📅 للتقويم</button>
+   <button class="btn ghost" onclick="editItem('${id}')">✏️ تعديل</button>${t.noImg?'':`<button class="btn ghost" onclick="addFiles('${id}')">📎 إضافة صورة أو ملف</button>`}<button class="btn ghost" onclick="moveToCat('${id}')">📂 نقل لتصنيف</button><button class="btn ghost" onclick="calMenu('${id}')">📅 للتقويم</button>
    ${it.state==='archived'?`<button class="btn ghost" onclick="setState('${id}','active')">↩️ استرجاع</button>`:`<button class="btn ghost" onclick="setState('${id}','archived')">🗄️ أرشفة</button>`}<button class="btn warn" onclick="delItem('${id}')">🗑️</button></div>
   ${hist.length?`<h4 style="margin:16px 0 6px">سجل التجديدات</h4><div class="tbl"><table><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>التكلفة</th><th>غرامة</th></tr>${hist.map(h=>`<tr><td>${fd(h.renewedOn)}</td><td>${fd(h.oldDue)}</td><td>${fd(h.newDue)}</td><td>${nf(h.cost)}</td><td>${+h.fine?nf(h.fine):'-'}</td></tr>`).join('')}</table></div>`:''}`);
   loadSheetImgs(it)}
@@ -1206,6 +1206,17 @@ async function saveFile(filename,data){const ext=filename.split('.').pop().toLow
 function icsDate(s){return s.replace(/-/g,'')}
 function fold(line){const out=[];let cur='',bytes=0;for(const ch of line){const b=new TextEncoder().encode(ch).length;if(bytes+b>73){out.push(cur);cur=' ';bytes=1}cur+=ch;bytes+=b}out.push(cur);return out.join('\r\n')}
 const icsEsc=s=>String(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+function alertDate(it){const d=dueDate(it);if(!d)return null;const a=iso(addDays(pd(d),-alertOf(it)));return a<today()?today():a}
+function calTitle(it,kind){const t=T(it.type);return kind==='alert'?`⏰ ${t.ic} تجهّز: ${tLabel(it)} ${ownerLabel(it)} ${t.periodic?'موعده':'ينتهي'} ${fd(dueDate(it))}`:`${t.ic} ${t.periodic?'موعد':'انتهاء'} ${tLabel(it)} - ${ownerLabel(it)}`}
+function calDesc(it){const t=T(it.type);const d=dueDate(it);return `${tLabel(it)} · ${ownerLabel(it)}\n${t.periodic?'الموعد':'الانتهاء'}: ${fd(d)} (${hijS(d)})\n${it.number?'الرقم: '+maskNum(it)+'\n':''}تكلفة التجديد: ${money(costOf(it))}\n${t.where?'التجديد: '+t.where+'\n':''}${t.req?'المتطلبات: '+t.req+'\n':''}فتح المستند: ${docLink(it._id)}`}
+function gcalUrl(it,kind){const day=kind==='alert'?alertDate(it):dueDate(it);const p=new URLSearchParams({action:'TEMPLATE',text:calTitle(it,kind),dates:icsDate(day)+'/'+icsDate(iso(addDays(pd(day),1))),details:calDesc(it)});return 'https://calendar.google.com/calendar/render?'+p.toString()}
+function calMenu(id){const it=S.items[id];const d=dueDate(it);if(!d){toast('حدد التاريخ أول');return}const ad=alertDate(it);
+  openModal(`<h3>📅 إضافة للتقويم<button class="x" onclick="openItem('${id}')">×</button></h3>
+  <p class="small muted">${esc(tLabel(it))} · ${esc(ownerLabel(it))}</p>
+  <div class="asst" style="--c:var(--amber)"><div class="ic">⏰</div><div class="tx"><b>يوم التنبيه: ${fd(ad)}</b><small>قبل ${alertOf(it)} يوم من ${T(it.type).periodic?'الموعد':'الانتهاء'}${ad===today()&&dBetween(today(),d)<alertOf(it)?' (فات وقته، فحطيته اليوم)':''}</small></div><a class="btn sm" target="_blank" rel="noopener" href="${gcalUrl(it,'alert')}">Google</a></div>
+  <div class="asst" style="--c:var(--red)"><div class="ic">${T(it.type).ic}</div><div class="tx"><b>يوم ${T(it.type).periodic?'الموعد':'الانتهاء'}: ${fd(d)}</b><small>${hijS(d)}</small></div><a class="btn sm" target="_blank" rel="noopener" href="${gcalUrl(it,'due')}">Google</a></div>
+  <div class="btns"><button class="btn sec2" onclick="dlICS(['${id}'])">📥 ملف تقويم (الاثنين مع التنبيهات)</button><button class="btn ghost" onclick="openItem('${id}')">↩️ رجوع</button></div>
+  <p class="small muted">زر Google يفتح تقويم جوجل وتضغط حفظ. وملف التقويم يضيف الموعدين مرة وحدة مع تنبيه الساعة 9 الصبح، ويشتغل مع تقويم الآيفون وسامسونج.</p>`)}
 function dlICS(ids){const L=(ids?ids.map(i=>S.items[i]):activeItems()).filter(i=>i&&dueDate(i));if(!L.length){toast('ما فيه مواعيد');return}
   const now=new Date().toISOString().replace(/[-:]/g,'').slice(0,15)+'Z';
   const ev=L.map(i=>{const d=dueDate(i);const a=alertOf(i);const t=T(i.type);
@@ -1214,7 +1225,9 @@ function dlICS(ids){const L=(ids?ids.map(i=>S.items[i]):activeItems()).filter(i=
     'DESCRIPTION:'+icsEsc(`${i.number?'الرقم: '+maskNum(i)+'\n':''}تكلفة التجديد: ${money(costOf(i))}\n${t.where?'التجديد: '+t.where+'\n':''}${t.req?'المتطلبات: '+t.req:''}`),
     'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(`باقي ${a} يوم على ${tLabel(i)} ${ownerLabel(i)}`),'TRIGGER:-P'+Math.max(0,a-1)+'DT15H','END:VALARM',
     ...(a>7?['BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(`باقي أسبوع على ${tLabel(i)} ${ownerLabel(i)}`),'TRIGGER:-P6DT15H','END:VALARM']:[]),
-    'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(`اليوم ينتهي ${tLabel(i)} ${ownerLabel(i)}`),'TRIGGER:PT9H','END:VALARM','END:VEVENT'].map(fold).join('\r\n')});
+    'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(`اليوم ينتهي ${tLabel(i)} ${ownerLabel(i)}`),'TRIGGER:PT9H','END:VALARM','END:VEVENT',
+    ...(a>0?(()=>{const ad=alertDate(i);return ['BEGIN:VEVENT','UID:'+i._id+'-alert@abunabi-renewals','DTSTAMP:'+now,'DTSTART;VALUE=DATE:'+icsDate(ad),'DTEND;VALUE=DATE:'+icsDate(iso(addDays(pd(ad),1))),
+      'SUMMARY:'+icsEsc(calTitle(i,'alert')),'DESCRIPTION:'+icsEsc(calDesc(i)),'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(calTitle(i,'alert')),'TRIGGER:PT9H','END:VALARM','END:VEVENT']})():[])].map(fold).join('\r\n')});
   const cal=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//abunabi//renewals//AR','CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:الانتهاءات',...ev,'END:VCALENDAR'].join('\r\n');
   saveFile(ids&&ids.length===1?`${tLabel(L[0])}.ics`:`الانتهاءات-${today()}.ics`,cal)}
 async function enableNotify(){if(!('Notification' in window)){toast('المتصفح ما يدعم التنبيهات، استخدم إضافة التقويم');return}
