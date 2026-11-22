@@ -708,7 +708,7 @@ async function runScan(files,pre){
   const ai=ST().ai||{};const prog=p=>{const e=$('#scanProg');if(e)e.style.width=Math.round(p*100)+'%'};
   const msg=t=>{const e=$('#scanBody p');if(e)e.innerHTML='<span class="spin"></span> '+t};
   let res=null;
-  if(ai.key){msg('🤖 الذكاء الاصطناعي يقرأ المستند ويصنفه...');prog(.35);try{res=await aiExtract(scan.imgs,ai);scan.engine='ai'}catch(e){console.warn(e);scan.aiErr=e.message;toast('تعذر الاتصال بالذكاء الاصطناعي، نجرب القراءة المحلية')}}
+  if(ai.key){msg('🤖 الذكاء الاصطناعي يقرأ المستند ويصنفه...');prog(.35);try{res=await aiExtract(scan.imgs,ai);scan.engine='ai'}catch(e){console.warn(e);scan.aiErr=aiErrAr(e);toast('تعذر الاتصال بالذكاء الاصطناعي، نجرب القراءة المحلية')}}
   if(!res){msg('🔎 قراءة النص من الصورة (أول مرة تاخذ وقت أطول)...');try{let txt='';for(let k=0;k<scan.imgs.length;k++)txt+=(await ocr(await enhance(scan.imgs[k]),p=>prog((k+p)/scan.imgs.length)))+'\n';scan.raw=txt;res=parseText(txt);scan.engine='ocr'}catch(e){console.warn(e);res={};scan.engine='none'}}
   prog(1);applyExtract(res||{});
   if(ST().autoApprove&&isComplete(scan.d)&&(LEARN().types||{})[scan.d.type]?.n>=2&&scan.d.matched&&!scan.questions.length){scanForm();setTimeout(()=>saveScan(),80);return}
@@ -850,12 +850,9 @@ function learnPrompt(){const L=LEARN();const parts=[];
   const names=Object.entries(L.names||{}).filter(([n,id])=>S.people[id]).slice(0,30).map(([n,id])=>`"${n}" = ${S.people[id].name}`);
   if(names.length)parts.push('أسماء تعرفنا عليها سابقاً (الاسم في المستند = الشخص المسجل): '+names.join('، '));
   return parts.length?'\n\nتعلّم من مراجعات المستخدم السابقة وطبقها على المستندات المشابهة:\n'+parts.slice(0,30).join('\n'):''}
-async function aiExtract(imgs,ai){const b64=imgs.map(u=>u.split(',')[1]);let txt='';
+async function aiExtract(imgs,ai){ai={...ai,key:cleanKey(ai.key)};const b64=imgs.map(u=>u.split(',')[1]);let txt='';
   if((ai.provider||'gemini')==='gemini'){
-    const model=ai.model||'gemini-flash-latest';
-    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':ai.key},
-      body:JSON.stringify({contents:[{parts:[{text:aiPrompt()},...b64.map(d=>({inline_data:{mime_type:'image/jpeg',data:d}}))]}],generationConfig:{responseMimeType:'application/json',temperature:0.1}})});
-    const j=await r.json();if(!r.ok)throw new Error((j.error&&j.error.message)||r.status);
+    const j=await gemini(ai,{contents:[{parts:[{text:aiPrompt()},...b64.map(d=>({inline_data:{mime_type:'image/jpeg',data:d}}))]}],generationConfig:{responseMimeType:'application/json',temperature:0.1}});
     txt=((j.candidates||[])[0]?.content?.parts||[]).map(p=>p.text||'').join('')}
   else{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':ai.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:ai.model||'claude-haiku-5-5',max_tokens:1200,messages:[{role:'user',content:[...b64.map(d=>({type:'image',source:{type:'base64',media_type:'image/jpeg',data:d}})),{type:'text',text:aiPrompt()+'\nأرجع JSON فقط بدون أي شرح.'}]}]})});
@@ -863,11 +860,29 @@ async function aiExtract(imgs,ai){const b64=imgs.map(u=>u.split(',')[1]);let txt
   const m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error('no json');const o=JSON.parse(m[0]);
   if(o.number&&o.type==='bank_card')o.number='';if(o.number&&/\d{13,19}/.test(String(o.number).replace(/\s/g,'')))o.number=String(o.number).replace(/\D/g,'').slice(-4);
   return o}
-async function testAI(){const ai={provider:v('aiProv'),key:v('aiKey'),model:v('aiModel')};if(!ai.key){toast('اكتب المفتاح');return}
+const cleanKey=k=>String(k||'').replace(/[^\x21-\x7E]/g,'');
+const GEM_MODELS=['gemini-flash-latest','gemini-2.5-flash','gemini-2.0-flash','gemini-flash-lite-latest'];
+async function gemini(ai,body){const key=cleanKey(ai.key);if(!key)throw new Error('NOKEY');const models=ai.model?[ai.model,...GEM_MODELS]:GEM_MODELS;let last;
+  for(const m of [...new Set(models)]){let r;
+    try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',body:JSON.stringify(body)})}
+    catch(e){throw new Error('NET')}
+    const j=await r.json().catch(()=>({}));if(r.ok)return j;
+    last=new Error((j.error&&j.error.message)||('HTTP '+r.status));
+    if(![404,429,500,503].includes(r.status))throw last}
+  throw last}
+function aiErrAr(e){const m=String(e&&e.message||e);
+  if(m==='NET'||/failed to fetch|load failed|networkerror/i.test(m))return 'الجوال ما قدر يوصل لخوادم Google. غالباً السبب من الشبكة أو المتصفح: جرب بيانات الجوال بدل الواي فاي (أو العكس)، وطفّ أي VPN أو مانع إعلانات أو DNS خاص، أو افتح البرنامج من Google Chrome.';
+  if(m==='NOKEY')return 'الصق المفتاح أول';
+  if(/API key not valid|API_KEY_INVALID/i.test(m))return 'المفتاح غير صحيح أو ناقص. ارجع لصفحة المفتاح وانسخه مرة ثانية بزر النسخ 📋';
+  if(/location is not supported|User location/i.test(m))return 'Google ما تدعم موقعك حالياً لهذي الخدمة';
+  if(/quota|RESOURCE_EXHAUSTED/i.test(m))return 'خلصت الحصة المجانية لليوم، جرب بكرة';
+  if(/PERMISSION_DENIED|permission/i.test(m))return 'المفتاح ما له صلاحية. سو مفتاح جديد من نفس الصفحة';
+  return m}
+async function testAI(){const ai={provider:v('aiProv'),key:cleanKey(v('aiKey')),model:v('aiModel')};if(!ai.key){toast('اكتب المفتاح');return}
   $('#aiTest').textContent='⏳ جاري الاختبار...';try{
-   if(ai.provider==='gemini'){const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(ai.model||'gemini-flash-latest')}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':ai.key},body:JSON.stringify({contents:[{parts:[{text:'رد بكلمة: تمام'}]}]})});const j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status)}
+   if(ai.provider==='gemini'){await gemini(ai,{contents:[{parts:[{text:'رد بكلمة: تمام'}]}]})}
    else{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':ai.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:ai.model||'claude-haiku-5-5',max_tokens:10,messages:[{role:'user',content:'رد بكلمة: تمام'}]})});const j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status)}
-   $('#aiTest').textContent='✅ يشتغل، القراءة الذكية جاهزة';toast('✅ القراءة الذكية تشتغل')}catch(e){$('#aiTest').textContent='❌ '+e.message;toast('❌ المفتاح ما اشتغل')}}
+   const ok='✅ يشتغل، القراءة الذكية جاهزة';localStorage.setItem('rn_aitest',ok);$('#aiTest').textContent=ok;toast('✅ القراءة الذكية تشتغل')}catch(e){const m='❌ '+aiErrAr(e);localStorage.setItem('rn_aitest',m);$('#aiTest').textContent=m;toast('❌ ما اشتغل، شف السبب تحت الزر')}}
 
 /* ----- القراءة المحلية (بدون إنترنت خارجي غير مكتبة القراءة) ----- */
 let tessP=null;function loadTess(){if(window.Tesseract)return Promise.resolve();if(!tessP)tessP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});return tessP}
@@ -1004,7 +1019,7 @@ function vSet(){const st=ST(),ai=st.ai||{};
    <div class="form"><label>المزود<select id="aiProv"><option value="gemini" ${(ai.provider||'gemini')==='gemini'?'selected':''}>Google Gemini (فيه استخدام مجاني)</option><option value="claude" ${ai.provider==='claude'?'selected':''}>Claude (Anthropic)</option></select></label>
    <label>المفتاح API Key<input id="aiKey" type="password" dir="ltr" value="${esc(ai.key||'')}" placeholder="الصق المفتاح هنا"></label>
    <label>الموديل (اختياري)<input id="aiModel" dir="ltr" value="${esc(ai.model||'')}" placeholder="gemini-flash-latest / claude-haiku-5-5"></label></div>
-   <div class="btns"><button class="btn sm" onclick="saveSettings({ai:{provider:v('aiProv'),key:v('aiKey'),model:v('aiModel')}}).then(testAI)">حفظ واختبار</button><span class="small" id="aiTest"></span></div>
+   <div class="btns"><button class="btn sm" onclick="saveSettings({ai:{provider:v('aiProv'),key:cleanKey(v('aiKey')),model:v('aiModel')}}).then(testAI)">حفظ واختبار</button><span class="small" id="aiTest">${esc(localStorage.getItem('rn_aitest')||'')}</span></div>
    <div class="qbox" style="margin-top:10px"><b>طريقة تطليع المفتاح المجاني (دقيقة وحدة)</b><ol class="small" style="margin:4px 0;padding-right:18px"><li>اضغط الزر تحت وادخل بحساب Gmail حقك</li><li>اضغط <b>Create API key</b> واختر أي مشروع أو اضغط Create</li><li>اضغط نسخ 📋 ورجع هنا والصقه في خانة المفتاح</li><li>اضغط <b>حفظ</b> ثم <b>اختبار</b></li></ol><a class="btn sm" target="_blank" href="https://aistudio.google.com/apikey">🔑 افتح صفحة المفتاح</a></div>
    <div class="divider"></div><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" style="width:auto" ${st.autoApprove?'checked':''} onchange="saveSettings({autoApprove:this.checked})"> اعتماد تلقائي بدون مراجعة للمستندات اللي عرفها من قبل (نفس النوع ونفس الشخص) وبياناتها كاملة</label>
    <p class="small muted">🧠 تعلّم من مراجعاتك: ${Object.values((S.settings.learn||{}).types||{}).reduce((a,t)=>a+(t.n||0),0)} مستند، ويعرف ${Object.keys((S.settings.learn||{}).names||{}).length} اسم و ${Object.keys((S.settings.learn||{}).plates||{}).length} لوحة. كل ما راجعت أكثر صار أدق.</p>
